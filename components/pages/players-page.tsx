@@ -1,14 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Archive, Edit3, Plus, Search, Trash2, Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { useApp } from "@/components/app-provider";
-import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
-import { teamsForPlayer } from "@/lib/data/selectors";
-import { cn } from "@/lib/utils";
-import type { Player } from "@/types/domain";
 
 const playerPositions = ["OPEN", "MIDDLE BLOCKER", "SETTER", "SUBSET", "LIBERO", "COACH"];
 
@@ -21,51 +18,27 @@ const blankPlayer = {
 };
 
 export function PlayersPage() {
-  const { data, isAdmin, createPlayer, updatePlayer, archivePlayer, deletePlayer } = useApp();
-  const [search, setSearch] = useState("");
-  const [teamFilter, setTeamFilter] = useState("all");
-  const [editing, setEditing] = useState<Player | null>(null);
+  const { data, isAdmin, createPlayer } = useApp();
   const [form, setForm] = useState(blankPlayer);
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
 
-  const players = useMemo(() => {
-    return data.players
-      .filter((player) => !player.archived)
-      .filter((player) => player.name.toLowerCase().includes(search.toLowerCase()))
-      .filter((player) =>
-        teamFilter === "all" ? true : data.playerTeams.some((link) => link.playerId === player.id && link.teamId === teamFilter)
-      )
+  const teams = useMemo(() => {
+    return data.teams
+      .filter((team) => !team.archived)
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [data.playerTeams, data.players, search, teamFilter]);
+  }, [data.teams]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
     try {
-      if (editing) {
-        await updatePlayer(editing.id, form, photo);
-      } else {
-        await createPlayer(form, photo);
-      }
-      setEditing(null);
+      await createPlayer(form, photo);
       setForm(blankPlayer);
       setPhoto(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save player.");
     }
-  }
-
-  function startEdit(player: Player) {
-    setEditing(player);
-    setForm({
-      name: player.name,
-      jerseyNumber: player.jerseyNumber,
-      position: player.position ?? "",
-      archived: player.archived,
-      teamIds: data.playerTeams.filter((link) => link.playerId === player.id).map((link) => link.teamId)
-    });
-    setPhoto(null);
   }
 
   function toggleTeam(teamId: string) {
@@ -79,32 +52,10 @@ export function PlayersPage() {
 
   return (
     <PageShell title="Players">
-      <div className="toolbar">
-        <label className="search-box">
-          <Search size={16} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search players" />
-        </label>
-        <select value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
-          <option value="all">All teams</option>
-          {data.teams
-            .filter((team) => !team.archived)
-            .map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-        </select>
-      </div>
-
       {isAdmin ? (
         <form className="form-panel" onSubmit={(event) => void submit(event)}>
           <div className="form-title">
-            <h2>{editing ? "Edit Player" : "Create Player"}</h2>
-            {editing ? (
-              <button type="button" className="text-button" onClick={() => setEditing(null)}>
-                Cancel
-              </button>
-            ) : null}
+            <h2>Create Player</h2>
           </div>
           {error ? <p className="form-error">{error}</p> : null}
           <div className="form-grid">
@@ -163,54 +114,60 @@ export function PlayersPage() {
           </label>
           <button className="primary-button" type="submit">
             <Plus size={17} />
-            {editing ? "Save Player" : "Add Player"}
+            Add Player
           </button>
         </form>
       ) : null}
 
-      <section className="card-list">
-        {players.length === 0 ? <EmptyState title="No players found" body="Try a different player or team filter." /> : null}
-        {players.map((player) => {
-          const teams = teamsForPlayer(data, player.id);
-          return (
-            <article className={cn("entity-card", player.archived && "muted-card")} key={player.id}>
-              <div className="avatar">{player.photoUrl ? <img src={player.photoUrl} alt="" /> : player.jerseyNumber}</div>
-              <div className="entity-main">
-                <h2>{player.name}</h2>
-                <p>
-                  #{player.jerseyNumber} {player.position ? `- ${player.position}` : ""}
-                </p>
-                <div className="chip-row">
-                  {teams.map((team) => (
-                    <span className="chip" key={team.id}>
-                      {team.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              {isAdmin ? (
-                <div className="row-actions">
-                  <button type="button" onClick={() => startEdit(player)} title="Edit player">
-                    <Edit3 size={16} />
-                  </button>
-                  <button type="button" onClick={() => void archivePlayer(player.id, !player.archived)} title="Archive player">
-                    <Archive size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirmAction(`Delete ${player.name}?`)) void deletePlayer(player.id);
-                    }}
-                    title="Delete player"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ) : null}
-            </article>
-          );
-        })}
+      <section
+        aria-label="Teams"
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))"
+        }}
+      >
+        {teams.length === 0 ? <EmptyState title="No teams found" body="Create a team before assigning players." /> : null}
+        {teams.map((team) => (
+          <Link
+            aria-label={`Open ${team.name} players`}
+            href={`/players/${team.id}`}
+            key={team.id}
+            rel="noopener noreferrer"
+            style={{
+              aspectRatio: "1",
+              background: "var(--surface)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--radius)",
+              boxShadow: "0 1px 0 rgba(16, 24, 40, 0.02)",
+              color: "var(--accent)",
+              display: "grid",
+              fontSize: 20,
+              fontWeight: 950,
+              minHeight: 88,
+              overflow: "hidden",
+              placeItems: "center"
+            }}
+            target="_blank"
+            title={team.name}
+          >
+            {team.logoUrl ? (
+              <img src={team.logoUrl} alt="" style={{ height: "100%", objectFit: "cover", width: "100%" }} />
+            ) : (
+              initials(team.name)
+            )}
+          </Link>
+        ))}
       </section>
     </PageShell>
   );
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
