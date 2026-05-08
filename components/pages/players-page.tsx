@@ -10,6 +10,8 @@ import { teamsForPlayer } from "@/lib/data/selectors";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/types/domain";
 
+const playerPositions = ["OPEN", "MIDDLE BLOCKER", "SETTER", "SUBSET", "LIBERO", "COACH"];
+
 const blankPlayer = {
   name: "",
   jerseyNumber: 1,
@@ -124,7 +126,17 @@ export function PlayersPage() {
           </div>
           <label>
             Position
-            <input value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })} />
+            <select value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })}>
+              <option value="">Select position</option>
+              {form.position && !playerPositions.includes(form.position) ? (
+                <option value={form.position}>{form.position}</option>
+              ) : null}
+              {playerPositions.map((position) => (
+                <option key={position} value={position}>
+                  {position}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="check-grid" aria-label="Assigned teams">
             {data.teams
