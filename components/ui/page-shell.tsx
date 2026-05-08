@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarDays, Home, LogIn, LogOut, Shield, Users, UserRound } from "lucide-react";
+import { BarChart3, CalendarDays, History, Home, LogIn, LogOut, Shield, Users, UserRound } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ const navItems = [
   { href: "/teams", label: "Teams", icon: Users, adminOnly: false },
   { href: "/players", label: "Players", icon: UserRound, adminOnly: false },
   { href: "/matches", label: "Match", icon: CalendarDays, adminOnly: true },
+  { href: "/history", label: "History", icon: History, adminOnly: false },
   { href: "/statistics", label: "Stats", icon: BarChart3, adminOnly: false }
 ];
 
@@ -56,7 +57,7 @@ export function PageShell({
       <nav className="bottom-nav" aria-label="Primary navigation">
         {visibleItems.map((item) => {
           const Icon = item.icon;
-          const active = pathname === item.href;
+          const active = item.href === "/" ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <Link key={item.href} className={cn("bottom-nav-item", active && "active")} href={item.href}>
               <Icon size={20} />

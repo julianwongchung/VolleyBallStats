@@ -109,6 +109,7 @@ export const seedData: AppData = {
       status: "completed",
       teamAScore: 3,
       teamBScore: 1,
+      remarks: "Strong serve pressure carried the first two sets.",
       createdAt: now,
       updatedAt: now
     },
@@ -120,6 +121,7 @@ export const seedData: AppData = {
       status: "in_progress",
       teamAScore: 1,
       teamBScore: 1,
+      remarks: "Match paused after two close sets.",
       createdAt: now,
       updatedAt: now
     }

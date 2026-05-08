@@ -73,10 +73,13 @@ create table if not exists public.matches (
   status public.match_status not null default 'scheduled',
   team_a_score integer check (team_a_score is null or team_a_score >= 0),
   team_b_score integer check (team_b_score is null or team_b_score >= 0),
+  remarks text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (team_a_id <> team_b_id)
 );
+
+alter table public.matches add column if not exists remarks text;
 
 create table if not exists public.match_stats (
   id uuid primary key default gen_random_uuid(),
@@ -214,11 +217,11 @@ values
   ('10000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000003')
 on conflict (player_id, team_id) do nothing;
 
-insert into public.matches (id, team_a_id, team_b_id, match_date, status, team_a_score, team_b_score)
+insert into public.matches (id, team_a_id, team_b_id, match_date, status, team_a_score, team_b_score, remarks)
 values
-  ('20000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '2026-05-01', 'completed', 3, 1),
-  ('20000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '2026-05-05', 'in_progress', 1, 1)
-on conflict (id) do update set status = excluded.status, team_a_score = excluded.team_a_score, team_b_score = excluded.team_b_score;
+  ('20000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002', '2026-05-01', 'completed', 3, 1, 'Strong serve pressure carried the first two sets.'),
+  ('20000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '2026-05-05', 'in_progress', 1, 1, 'Match paused after two close sets.')
+on conflict (id) do update set status = excluded.status, team_a_score = excluded.team_a_score, team_b_score = excluded.team_b_score, remarks = excluded.remarks;
 
 insert into public.match_stats (
   match_id, team_id, player_id, attack, block, ace, dig, attack_error, serve_error, receive_error

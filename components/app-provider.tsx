@@ -50,6 +50,7 @@ type AppContextValue = SessionState & {
   createMatch: (input: MatchInput) => Promise<void>;
   updateMatch: (id: string, input: MatchInput) => Promise<void>;
   deleteMatch: (id: string) => Promise<void>;
+  setMatchPlayer: (matchId: string, teamId: string, playerId: string, selected: boolean) => Promise<void>;
   updateStat: (matchId: string, teamId: string, playerId: string, key: StatKey, value: number) => Promise<void>;
 };
 
@@ -492,8 +493,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       validateMatch(input);
       const timestamp = new Date().toISOString();
       if (supabase) {
-        const { error } = await supabase.from("matches").insert(toMatchRow(input));
-        if (error) throw new Error(error.message);
+        const row = toMatchRow(input);
+        const { error } = await supabase.from("matches").insert(row);
+        if (error) {
+          if (!isMissingRemarksColumn(error)) throw new Error(error.message);
+          const { error: retryError } = await supabase.from("matches").insert(toMatchRowWithoutRemarks(input));
+          if (retryError) throw new Error(retryError.message);
+        }
         await loadSupabaseData();
         return;
       }
@@ -512,11 +518,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (id: string, input: MatchInput) => {
       validateMatch(input);
       if (supabase) {
-        const { error } = await supabase
-          .from("matches")
-          .update({ ...toMatchRow(input), updated_at: new Date().toISOString() })
-          .eq("id", id);
-        if (error) throw new Error(error.message);
+        const row = { ...toMatchRow(input), updated_at: new Date().toISOString() };
+        const { error } = await supabase.from("matches").update(row).eq("id", id);
+        if (error) {
+          if (!isMissingRemarksColumn(error)) throw new Error(error.message);
+          const { error: retryError } = await supabase
+            .from("matches")
+            .update({ ...toMatchRowWithoutRemarks(input), updated_at: row.updated_at })
+            .eq("id", id);
+          if (retryError) throw new Error(retryError.message);
+        }
         await loadSupabaseData();
         return;
       }
@@ -592,6 +603,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [data, loadSupabaseData, saveLocal, supabase]
   );
 
+  const setMatchPlayer = useCallback(
+    async (matchId: string, teamId: string, playerId: string, selected: boolean) => {
+      const existing = data.matchStats.find(
+        (stat) => stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId
+      );
+
+      if (supabase) {
+        if (selected) {
+          if (existing) return;
+          const { error } = await supabase.from("match_stats").insert(toMatchStatRow(emptyStat(matchId, teamId, playerId)));
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase
+            .from("match_stats")
+            .delete()
+            .eq("match_id", matchId)
+            .eq("team_id", teamId)
+            .eq("player_id", playerId);
+          if (error) throw new Error(error.message);
+        }
+        await loadSupabaseData();
+        return;
+      }
+
+      if (selected) {
+        if (existing) return;
+        saveLocal({ ...data, matchStats: [...data.matchStats, emptyStat(matchId, teamId, playerId)] });
+        return;
+      }
+
+      saveLocal({
+        ...data,
+        matchStats: data.matchStats.filter(
+          (stat) => !(stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId)
+        )
+      });
+    },
+    [data, loadSupabaseData, saveLocal, supabase]
+  );
+
   const value = useMemo<AppContextValue>(
     () => ({
       ...session,
@@ -611,6 +662,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createMatch,
       updateMatch,
       deleteMatch,
+      setMatchPlayer,
       updateStat
     }),
     [
@@ -627,6 +679,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loginAsDemoAdmin,
       logout,
       refresh,
+      setMatchPlayer,
       session,
       updateMatch,
       updatePlayer,
@@ -726,6 +779,7 @@ function mapMatch(row: Record<string, any>): Match {
     status: row.status,
     teamAScore: row.team_a_score,
     teamBScore: row.team_b_score,
+    remarks: row.remarks,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -756,8 +810,25 @@ function toMatchRow(input: MatchInput) {
     match_date: input.matchDate,
     status: input.status,
     team_a_score: input.teamAScore ?? null,
+    team_b_score: input.teamBScore ?? null,
+    remarks: input.remarks?.trim() || null
+  };
+}
+
+function toMatchRowWithoutRemarks(input: MatchInput) {
+  return {
+    team_a_id: input.teamAId,
+    team_b_id: input.teamBId,
+    match_date: input.matchDate,
+    status: input.status,
+    team_a_score: input.teamAScore ?? null,
     team_b_score: input.teamBScore ?? null
   };
+}
+
+function isMissingRemarksColumn(error: { code?: string; message?: string; details?: string | null }) {
+  const text = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return error.code === "PGRST204" || (text.includes("remarks") && text.includes("schema cache"));
 }
 
 function toMatchStatRow(stat: MatchStat) {

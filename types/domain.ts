@@ -13,7 +13,6 @@ export const statKeys: StatKey[] = [
   "attack",
   "block",
   "ace",
-  "dig",
   "attackError",
   "serveError",
   "receiveError"
@@ -77,6 +76,7 @@ export type Match = {
   status: MatchStatus;
   teamAScore?: number | null;
   teamBScore?: number | null;
+  remarks?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -131,4 +131,5 @@ export type MatchInput = {
   status: MatchStatus;
   teamAScore?: number | null;
   teamBScore?: number | null;
+  remarks?: string | null;
 };

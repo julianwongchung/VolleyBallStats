@@ -79,6 +79,47 @@ export function teamTotalsForMatch(data: AppData, matchId: string) {
     .filter((row) => row.stats.length > 0);
 }
 
+export type TeamComparisonTotals = {
+  team: Team;
+  attack: number;
+  block: number;
+  ace: number;
+  opponentError: number;
+  total: number;
+};
+
+export function comparisonTotalsForMatch(data: AppData, match: Match) {
+  const teamA = teamById(data, match.teamAId);
+  const teamB = teamById(data, match.teamBId);
+  if (!teamA || !teamB) return null;
+
+  const teamAStats = data.matchStats.filter((stat) => stat.matchId === match.id && stat.teamId === teamA.id);
+  const teamBStats = data.matchStats.filter((stat) => stat.matchId === match.id && stat.teamId === teamB.id);
+  const teamAOwn = sumStats(teamAStats);
+  const teamBOwn = sumStats(teamBStats);
+  const teamAOpponentError = teamBOwn.attackError + teamBOwn.serveError + teamBOwn.receiveError;
+  const teamBOpponentError = teamAOwn.attackError + teamAOwn.serveError + teamAOwn.receiveError;
+
+  return {
+    teamA: {
+      team: teamA,
+      attack: teamAOwn.attack,
+      block: teamAOwn.block,
+      ace: teamAOwn.ace,
+      opponentError: teamAOpponentError,
+      total: teamAOwn.attack + teamAOwn.block + teamAOwn.ace + teamAOpponentError
+    },
+    teamB: {
+      team: teamB,
+      attack: teamBOwn.attack,
+      block: teamBOwn.block,
+      ace: teamBOwn.ace,
+      opponentError: teamBOpponentError,
+      total: teamBOwn.attack + teamBOwn.block + teamBOwn.ace + teamBOpponentError
+    }
+  };
+}
+
 export function displayTeam(team?: Team) {
   return team?.name ?? "Unknown team";
 }
