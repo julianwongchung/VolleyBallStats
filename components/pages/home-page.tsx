@@ -26,22 +26,25 @@ export function HomePage() {
       </section>
 
       <section className="section-block">
-        <div className="section-heading">
+        <div className="section-heading home-recent-heading">
           <h2>Recent Matches</h2>
           <Link href="/statistics">View stats</Link>
         </div>
-        <div className="list-panel">
+        <div className="home-recent-list">
           {recentMatches(data.matches).map((match) => (
-            <Link className="match-row" key={match.id} href="/statistics">
-              <div>
-                <small>{formatDate(match.matchDate)}</small>
-                <strong>
+            <Link className="home-recent-card" key={match.id} href="/statistics">
+              <div className="home-recent-copy">
+                <span className="home-recent-date">{formatDate(match.matchDate)}</span>
+                <strong className="home-recent-title">
                   {displayTeam(teamById(data, match.teamAId))} vs {displayTeam(teamById(data, match.teamBId))}
                 </strong>
+                <span className={`status home-recent-status status-${match.status}`}>
+                  {match.status.replace("_", " ")}
+                </span>
               </div>
-              <div className="row-end">
-                <span className={`status status-${match.status}`}>{match.status.replace("_", " ")}</span>
-                <b>
+              <div className="home-recent-score-row">
+                <span>Score</span>
+                <b className="home-recent-score">
                   {match.teamAScore ?? "-"} - {match.teamBScore ?? "-"}
                 </b>
               </div>
