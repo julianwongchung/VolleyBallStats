@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Archive, Edit3, Plus, Search, Trash2, Upload } from "lucide-react";
 import { useApp } from "@/components/app-provider";
@@ -119,7 +120,16 @@ export function TeamsPage() {
         {teams.length === 0 ? <EmptyState title="No teams found" body="Try a different search or filter." /> : null}
         {teams.map((team) => (
           <article className={cn("entity-card", team.archived && "muted-card")} key={team.id}>
-            <div className="avatar">{team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}</div>
+            <Link
+              aria-label={`Open ${team.name} players`}
+              className="avatar"
+              href={`/players/${team.id}`}
+              rel="noopener noreferrer"
+              target="_blank"
+              title={`${team.name} players`}
+            >
+              {team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}
+            </Link>
             <div className="entity-main">
               <h2>{team.name}</h2>
               <p>{team.description || "No description"}</p>

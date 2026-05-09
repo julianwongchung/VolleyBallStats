@@ -32,8 +32,8 @@ export function LoginPage() {
         </div>
         <h2>{isAdmin ? "Admin mode is active" : "Sign in to manage records"}</h2>
         <p>
-          Guests can view teams, players, match summaries, and statistics. Admins can manage teams, players, matches,
-          uploads, and stats.
+          Guests can view teams, team rosters, match summaries, and statistics. Admins can manage teams, players,
+          matches, uploads, and stats.
         </p>
         {error ? <p className="form-error">{error}</p> : null}
         <form className="form-stack" onSubmit={(event) => void submit(event)}>

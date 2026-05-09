@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "Home", icon: Home, adminOnly: false },
   { href: "/teams", label: "Teams", icon: Users, adminOnly: false },
-  { href: "/players", label: "Players", icon: UserRound, adminOnly: false },
+  { href: "/players", label: "Players", icon: UserRound, adminOnly: true },
   { href: "/matches", label: "Match", icon: CalendarDays, adminOnly: true },
   { href: "/history", label: "History", icon: History, adminOnly: false },
   { href: "/statistics", label: "Stats", icon: BarChart3, adminOnly: false }

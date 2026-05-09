@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Upload } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -18,7 +19,8 @@ const blankPlayer = {
 };
 
 export function PlayersPage() {
-  const { data, isAdmin, createPlayer } = useApp();
+  const { data, isAdmin, isLoading, createPlayer } = useApp();
+  const router = useRouter();
   const [form, setForm] = useState(blankPlayer);
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -40,6 +42,12 @@ export function PlayersPage() {
       setError(err instanceof Error ? err.message : "Unable to save player.");
     }
   }
+
+  useEffect(() => {
+    if (!isLoading && !isAdmin) router.replace("/teams");
+  }, [isAdmin, isLoading, router]);
+
+  if (!isLoading && !isAdmin) return null;
 
   function toggleTeam(teamId: string) {
     setForm((current) => ({
