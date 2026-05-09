@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Edit3, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { Archive, Edit3, ListFilter, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,6 +17,7 @@ export function TeamsPage() {
   const { data, isAdmin, createTeam, updateTeam, archiveTeam, deleteTeam } = useApp();
   const [search, setSearch] = useState("");
   const [archiveFilter, setArchiveFilter] = useState("active");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [editing, setEditing] = useState<Team | null>(null);
   const [selectedGuestTeam, setSelectedGuestTeam] = useState<Team | null>(null);
   const [form, setForm] = useState(blankTeam);
@@ -81,16 +82,40 @@ export function TeamsPage() {
 
   return (
     <PageShell title="Teams">
-      <div className="toolbar">
+      <div className="teams-toolbar">
         <label className="search-box">
-          <Search size={16} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search teams" />
+          <Search size={15} />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search teams..." />
         </label>
-        <select value={archiveFilter} onChange={(event) => setArchiveFilter(event.target.value)}>
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-          <option value="all">All</option>
-        </select>
+        <div className="teams-filter">
+          <button
+            aria-expanded={filterOpen}
+            aria-label="Filter teams"
+            className={cn("teams-filter-button", filterOpen && "active")}
+            onClick={() => setFilterOpen((current) => !current)}
+            title="Filter teams"
+            type="button"
+          >
+            <ListFilter size={16} />
+          </button>
+          {filterOpen ? (
+            <div className="teams-filter-menu">
+              {["active", "archived", "all"].map((option) => (
+                <button
+                  className={archiveFilter === option ? "active" : ""}
+                  key={option}
+                  onClick={() => {
+                    setArchiveFilter(option);
+                    setFilterOpen(false);
+                  }}
+                  type="button"
+                >
+                  {option === "all" ? "All" : option === "archived" ? "Archived" : "Active"}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {isAdmin ? (
@@ -136,41 +161,34 @@ export function TeamsPage() {
         </form>
       ) : null}
 
-      <section className="card-list">
+      <section className="team-card-grid">
         {teams.length === 0 ? <EmptyState title="No teams found" body="Try a different search or filter." /> : null}
         {teams.map((team) => (
-          <article className={cn("entity-card", team.archived && "muted-card")} key={team.id}>
+          <article className={cn("team-tile", team.archived && "muted-card")} key={team.id}>
             {isAdmin ? (
               <Link
                 aria-label={`Open ${team.name} players`}
-                className="avatar"
+                className="team-tile-trigger"
                 href={`/players/${team.id}`}
                 rel="noopener noreferrer"
                 target="_blank"
                 title={`${team.name} players`}
               >
-                {team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}
+                <TeamTileContent team={team} />
               </Link>
             ) : (
               <button
                 aria-label={`Show ${team.name} players`}
-                className="avatar avatar-button"
+                className="team-tile-trigger"
                 onClick={() => setSelectedGuestTeam(team)}
                 title={`${team.name} players`}
                 type="button"
               >
-                {team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}
+                <TeamTileContent team={team} />
               </button>
             )}
-            <div className="entity-main">
-              <h2>{team.name}</h2>
-              <p>{team.description || "No description"}</p>
-              <span className={`status ${team.archived ? "status-cancelled" : "status-completed"}`}>
-                {team.archived ? "archived" : "active"}
-              </span>
-            </div>
             {isAdmin ? (
-              <div className="row-actions">
+              <div className="team-tile-actions">
                 <button type="button" onClick={() => startEdit(team)} title="Edit team">
                   <Edit3 size={16} />
                 </button>
@@ -248,6 +266,16 @@ export function TeamsPage() {
         </div>
       ) : null}
     </PageShell>
+  );
+}
+
+function TeamTileContent({ team }: { team: Team }) {
+  return (
+    <>
+      <span className="team-status-badge">{team.archived ? "INACTIVE" : "ACTIVE"}</span>
+      <span className="team-logo-frame">{team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}</span>
+      <span className="team-tile-name">{team.name}</span>
+    </>
   );
 }
 

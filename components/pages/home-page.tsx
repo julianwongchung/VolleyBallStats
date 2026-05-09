@@ -4,8 +4,8 @@ import Link from "next/link";
 import { Award, CalendarCheck, Flame, ShieldCheck, Trophy, Users, UserRound } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { displayTeam, recentMatches, teamById, topByStat, topScorer } from "@/lib/data/selectors";
-import { formatDate } from "@/lib/utils";
 import { PageShell } from "@/components/ui/page-shell";
+import type { Match, Team } from "@/types/domain";
 
 export function HomePage() {
   const { data } = useApp();
@@ -15,6 +15,8 @@ export function HomePage() {
   const scorer = topScorer(data);
   const blocker = topByStat(data, "block");
   const totalAces = data.matchStats.reduce((sum, stat) => sum + stat.ace, 0);
+  const upcomingMatches = recentMatches(data.matches.filter((match) => match.status !== "completed"));
+  const recentCompletedMatches = recentMatches(data.matches.filter((match) => match.status === "completed"));
 
   return (
     <PageShell title="Home">
@@ -27,30 +29,24 @@ export function HomePage() {
 
       <section className="section-block">
         <div className="section-heading home-recent-heading">
-          <h2>Recent Matches</h2>
+          <div>
+            <h2>Recent & Upcoming</h2>
+            <p>Latest volleyball matches</p>
+          </div>
           <Link href="/statistics">View stats</Link>
         </div>
-        <div className="home-recent-list">
-          {recentMatches(data.matches).map((match) => (
-            <Link className="home-recent-card" key={match.id} href="/statistics">
-              <div className="home-recent-copy">
-                <span className="home-recent-date">{formatDate(match.matchDate)}</span>
-                <strong className="home-recent-title">
-                  {displayTeam(teamById(data, match.teamAId))} vs {displayTeam(teamById(data, match.teamBId))}
-                </strong>
-                <span className={`status home-recent-status status-${match.status}`}>
-                  {match.status.replace("_", " ")}
-                </span>
-              </div>
-              <div className="home-recent-score-row">
-                <span>Score</span>
-                <b className="home-recent-score">
-                  {match.teamAScore ?? "-"} - {match.teamBScore ?? "-"}
-                </b>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <HomeMatchGroup
+          emptyText="No upcoming matches yet."
+          matches={upcomingMatches}
+          title="Upcoming Match"
+          teams={data.teams}
+        />
+        <HomeMatchGroup
+          emptyText="No completed matches yet."
+          matches={recentCompletedMatches}
+          title="Completed Match"
+          teams={data.teams}
+        />
       </section>
 
       <section className="summary-grid">
@@ -72,6 +68,91 @@ export function HomePage() {
       </section>
     </PageShell>
   );
+}
+
+function HomeMatchGroup({
+  emptyText,
+  matches,
+  teams,
+  title
+}: {
+  emptyText: string;
+  matches: Match[];
+  teams: Team[];
+  title: string;
+}) {
+  return (
+    <div className="home-match-group">
+      <h3>{title}</h3>
+      <div className="home-recent-list">
+        {matches.length === 0 ? <p className="home-recent-empty">{emptyText}</p> : null}
+        {matches.map((match) => {
+          const teamA = teams.find((team) => team.id === match.teamAId);
+          const teamB = teams.find((team) => team.id === match.teamBId);
+          return <HomeMatchCard key={match.id} match={match} teamA={teamA} teamB={teamB} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HomeMatchCard({ match, teamA, teamB }: { match: Match; teamA?: Team; teamB?: Team }) {
+  const isCompleted = match.status === "completed";
+  const dateParts = formatMatchCardDate(match.matchDate);
+  const scoreA = match.teamAScore ?? 0;
+  const scoreB = match.teamBScore ?? 0;
+
+  return (
+    <Link className="home-recent-card" href={isCompleted ? `/history/${match.id}` : "/history"}>
+      <div className="home-match-main">
+        <span className={`status home-recent-status status-${match.status}`}>{match.status.replace("_", " ")}</span>
+        <HomeMatchTeam team={teamA} />
+        <span className="home-match-vs">vs</span>
+        <HomeMatchTeam team={teamB} />
+      </div>
+      <div className={`home-match-side ${isCompleted ? "home-match-side-completed" : "home-match-side-scheduled"}`}>
+        {isCompleted ? (
+          <>
+            <strong>{scoreA}</strong>
+            <strong className="muted-score">{scoreB}</strong>
+          </>
+        ) : (
+          <>
+            <strong>{dateParts.day}</strong>
+            <span>{dateParts.month}</span>
+            <small>{dateParts.time}</small>
+          </>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function HomeMatchTeam({ team }: { team?: Team }) {
+  return (
+    <div className="home-match-team">
+      <span className="home-match-logo">{team?.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team?.name)}</span>
+      <strong>{displayTeam(team)}</strong>
+    </div>
+  );
+}
+
+function initials(name?: string) {
+  return (name ?? "?")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function formatMatchCardDate(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return {
+    day: new Intl.DateTimeFormat("en", { day: "2-digit" }).format(date),
+    month: new Intl.DateTimeFormat("en", { month: "short" }).format(date).toUpperCase(),
+    time: "TBD"
+  };
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
