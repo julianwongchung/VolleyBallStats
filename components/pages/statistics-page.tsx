@@ -18,7 +18,6 @@ import { statKeys, statShortLabels, type AppData, type StatKey } from "@/types/d
 type PlayerSummaryRow = {
   key: string;
   playerName: string;
-  teamName: string;
   stats: Record<StatKey, number>;
   points: number;
 };
@@ -139,24 +138,20 @@ export function StatisticsPage() {
           <EmptyState title="No statistics found" body="Change filters or record stats for a match." />
         ) : (
           <div className="responsive-table">
-            <div className="table-head stats-grid">
+            <div className="table-head player-summary-grid">
               <span>Player</span>
-              <span>Team</span>
               {statKeys.map((key) => (
                 <span key={key}>{statShortLabels[key]}</span>
               ))}
-              <span>PTS</span>
             </div>
             {playerSummaryRows.map((row) => (
-              <div className="table-row stats-grid" key={row.key}>
+              <div className="table-row player-summary-grid" key={row.key}>
                 <strong>{row.playerName}</strong>
-                <span>{row.teamName}</span>
                 {statKeys.map((key) => (
                   <span key={key} data-label={statShortLabels[key]}>
                     {row.stats[key]}
                   </span>
                 ))}
-                <b>{row.points}</b>
               </div>
             ))}
           </div>
@@ -212,11 +207,9 @@ function buildPlayerSummaryRows(
 
     if (!row) {
       const player = playerById(data, stat.playerId);
-      const team = teamById(data, stat.teamId);
       row = {
         key,
         playerName: player?.name ?? "Unknown",
-        teamName: team?.name ?? "Unknown",
         stats: statKeys.reduce(
           (totals, statKey) => {
             totals[statKey] = 0;

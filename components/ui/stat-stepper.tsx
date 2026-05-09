@@ -25,9 +25,9 @@ export function StatStepper({
           disabled={disabled}
           inputMode="numeric"
           min={0}
+          readOnly
           type="number"
           value={value}
-          onChange={(event) => onChange(Math.max(0, Number(event.target.value)))}
         />
         <button type="button" disabled={disabled} onClick={() => onChange(value + 1)}>
           <Plus size={13} />

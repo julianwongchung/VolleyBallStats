@@ -45,6 +45,12 @@ export function MatchHistoryCard({
           ) : null}
         </div>
       </div>
+      {match.remarks ? (
+        <p className="history-remarks">
+          <strong>Remarks</strong>
+          {match.remarks}
+        </p>
+      ) : null}
     </article>
   );
 }

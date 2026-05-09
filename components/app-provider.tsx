@@ -57,6 +57,7 @@ type AppContextValue = SessionState & {
 const STORAGE_KEY = "volleystats-demo-data-v1";
 const MISSING_VIDEO_URL_COLUMN_MESSAGE =
   "Supabase is missing the matches.video_url column. Run: alter table public.matches add column if not exists video_url text;";
+const SCORE_STAT_KEYS: StatKey[] = ["attack", "block", "ace", "attackError", "serveError", "receiveError"];
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -570,11 +571,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (matchId: string, teamId: string, playerId: string, key: StatKey, value: number) => {
       const nextValue = Math.max(0, Number.isFinite(value) ? value : 0);
       const timestamp = new Date().toISOString();
+      const match = data.matches.find((item) => item.id === matchId);
+      const existing = data.matchStats.find(
+        (stat) => stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId
+      );
+      const delta = nextValue - (existing?.[key] ?? 0);
+      const nextScores = match ? scorePatchForStatChange(match, teamId, key, delta) : null;
 
       if (supabase) {
-        const existing = data.matchStats.find(
-          (stat) => stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId
-        );
         const row = toMatchStatRow({
           ...(existing ?? emptyStat(matchId, teamId, playerId)),
           [key]: nextValue,
@@ -585,13 +589,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : supabase.from("match_stats").insert(row);
         const { error } = await query;
         if (error) throw new Error(error.message);
+        if (nextScores) {
+          const { error: scoreError } = await supabase
+            .from("matches")
+            .update({ ...nextScores, updated_at: timestamp })
+            .eq("id", matchId);
+          if (scoreError) throw new Error(scoreError.message);
+        }
         await loadSupabaseData();
         return;
       }
 
-      const existing = data.matchStats.find(
-        (stat) => stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId
-      );
       const nextStats = existing
         ? data.matchStats.map((stat) =>
             stat.id === existing.id ? { ...stat, [key]: nextValue, updatedAt: timestamp } : stat
@@ -606,16 +614,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updatedAt: timestamp
             }
           ];
-      saveLocal({ ...data, matchStats: nextStats });
+      saveLocal({
+        ...data,
+        matches:
+          match && nextScores
+            ? data.matches.map((item) =>
+                item.id === matchId
+                  ? {
+                      ...item,
+                      teamAScore: nextScores.team_a_score,
+                      teamBScore: nextScores.team_b_score,
+                      updatedAt: timestamp
+                    }
+                  : item
+              )
+            : data.matches,
+        matchStats: nextStats
+      });
     },
     [data, loadSupabaseData, saveLocal, supabase]
   );
 
   const setMatchPlayer = useCallback(
     async (matchId: string, teamId: string, playerId: string, selected: boolean) => {
+      const match = data.matches.find((item) => item.id === matchId);
       const existing = data.matchStats.find(
         (stat) => stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId
       );
+      const nextScores = match && existing && !selected ? scorePatchForRemovedStat(match, existing) : null;
 
       if (supabase) {
         if (selected) {
@@ -630,6 +656,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             .eq("team_id", teamId)
             .eq("player_id", playerId);
           if (error) throw new Error(error.message);
+          if (nextScores) {
+            const { error: scoreError } = await supabase
+              .from("matches")
+              .update({ ...nextScores, updated_at: new Date().toISOString() })
+              .eq("id", matchId);
+            if (scoreError) throw new Error(scoreError.message);
+          }
         }
         await loadSupabaseData();
         return;
@@ -643,6 +676,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       saveLocal({
         ...data,
+        matches:
+          match && nextScores
+            ? data.matches.map((item) =>
+                item.id === matchId
+                  ? {
+                      ...item,
+                      teamAScore: nextScores.team_a_score,
+                      teamBScore: nextScores.team_b_score,
+                      updatedAt: new Date().toISOString()
+                    }
+                  : item
+              )
+            : data.matches,
         matchStats: data.matchStats.filter(
           (stat) => !(stat.matchId === matchId && stat.teamId === teamId && stat.playerId === playerId)
         )
@@ -838,6 +884,47 @@ function toMatchRow(input: MatchInput, omittedColumns: OptionalMatchColumn[] = [
   if (!omittedColumns.includes("video_url")) row.video_url = input.videoUrl?.trim() || null;
 
   return row;
+}
+
+function scorePatchForStatChange(match: Match, teamId: string, key: StatKey, delta: number) {
+  if (delta === 0) return null;
+  const scoringTeamId = scoringTeamForStat(match, teamId, key);
+  if (!scoringTeamId) return null;
+
+  const teamAScore = match.teamAScore ?? 0;
+  const teamBScore = match.teamBScore ?? 0;
+
+  if (scoringTeamId === match.teamAId) {
+    return {
+      team_a_score: Math.max(0, teamAScore + delta),
+      team_b_score: teamBScore
+    };
+  }
+
+  return {
+    team_a_score: teamAScore,
+    team_b_score: Math.max(0, teamBScore + delta)
+  };
+}
+
+function scorePatchForRemovedStat(match: Match, stat: MatchStat) {
+  return SCORE_STAT_KEYS.reduce<ReturnType<typeof scorePatchForStatChange>>((patch, key) => {
+    const currentMatch = patch
+      ? { ...match, teamAScore: patch.team_a_score, teamBScore: patch.team_b_score }
+      : match;
+    return scorePatchForStatChange(currentMatch, stat.teamId, key, -stat[key]) ?? patch;
+  }, null);
+}
+
+function scoringTeamForStat(match: Match, teamId: string, key: StatKey) {
+  if (key === "attack" || key === "block" || key === "ace") {
+    return teamId === match.teamAId || teamId === match.teamBId ? teamId : null;
+  }
+  if (key === "attackError" || key === "serveError" || key === "receiveError") {
+    if (teamId === match.teamAId) return match.teamBId;
+    if (teamId === match.teamBId) return match.teamAId;
+  }
+  return null;
 }
 
 type OptionalMatchColumn = "remarks" | "video_url";

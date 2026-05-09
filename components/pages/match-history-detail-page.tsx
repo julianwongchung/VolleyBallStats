@@ -90,6 +90,7 @@ export function MatchHistoryDetailPage({ matchId }: { matchId: string }) {
       {comparison ? (
         <>
           <TeamStatsComparison teamA={comparison.teamA} teamB={comparison.teamB} />
+          {match.remarks ? <MatchRemarks remarks={match.remarks} /> : null}
           {match.videoUrl ? <MatchVideoEmbed url={match.videoUrl} /> : null}
         </>
       ) : (
@@ -205,6 +206,15 @@ function matchToInput(match: ReturnType<typeof useApp>["data"]["matches"][number
     remarks: match?.remarks ?? "",
     videoUrl: match?.videoUrl ?? ""
   };
+}
+
+function MatchRemarks({ remarks }: { remarks: string }) {
+  return (
+    <section className="match-detail-remarks" aria-label="Match remarks">
+      <strong>Remarks</strong>
+      <p>{remarks}</p>
+    </section>
+  );
 }
 
 function MatchVideoEmbed({ url }: { url: string }) {
