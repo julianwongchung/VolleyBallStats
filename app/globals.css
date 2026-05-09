@@ -1792,6 +1792,57 @@ label {
   background: #b8c0ca;
 }
 
+.match-video-card {
+  display: grid;
+  gap: 12px;
+  margin: -4px 0 18px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.match-video-heading,
+.match-video-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.match-video-heading {
+  color: var(--danger);
+}
+
+.match-video-card strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.match-video-frame {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #111827;
+}
+
+.match-video-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.match-video-card a {
+  justify-self: end;
+  justify-content: flex-end;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
 @media (min-width: 640px) {
   .app-frame {
     padding: 24px 22px 104px;

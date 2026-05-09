@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Save, Trash2, Youtube } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/components/app-provider";
 import { TeamStatsComparison } from "@/components/history/team-stats-comparison";
@@ -88,7 +88,10 @@ export function MatchHistoryDetailPage({ matchId }: { matchId: string }) {
       </div>
 
       {comparison ? (
-        <TeamStatsComparison teamA={comparison.teamA} teamB={comparison.teamB} />
+        <>
+          <TeamStatsComparison teamA={comparison.teamA} teamB={comparison.teamB} />
+          {match.videoUrl ? <MatchVideoEmbed url={match.videoUrl} /> : null}
+        </>
       ) : (
         <EmptyState title="Missing team data" body="This match references a team that is not available." />
       )}
@@ -165,6 +168,15 @@ export function MatchHistoryDetailPage({ matchId }: { matchId: string }) {
             </label>
           </div>
           <label>
+            YouTube video link
+            <input
+              placeholder="https://www.youtube.com/watch?v=..."
+              type="url"
+              value={form.videoUrl ?? ""}
+              onChange={(event) => setForm({ ...form, videoUrl: event.target.value })}
+            />
+          </label>
+          <label>
             Remarks
             <textarea
               rows={3}
@@ -190,6 +202,59 @@ function matchToInput(match: ReturnType<typeof useApp>["data"]["matches"][number
     status: match?.status ?? "completed",
     teamAScore: match?.teamAScore ?? 0,
     teamBScore: match?.teamBScore ?? 0,
-    remarks: match?.remarks ?? ""
+    remarks: match?.remarks ?? "",
+    videoUrl: match?.videoUrl ?? ""
   };
+}
+
+function MatchVideoEmbed({ url }: { url: string }) {
+  const embedUrl = getYouTubeEmbedUrl(url);
+
+  return (
+    <section className="match-video-card" aria-label="Match video">
+      <div className="match-video-heading">
+        <Youtube size={20} />
+        <strong>Match Video</strong>
+      </div>
+      {embedUrl ? (
+        <div className="match-video-frame">
+          <iframe
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            src={embedUrl}
+            title="Match video"
+          />
+        </div>
+      ) : null}
+      <a href={url} target="_blank" rel="noreferrer">
+        Watch on YouTube
+        <ExternalLink size={16} />
+      </a>
+    </section>
+  );
+}
+
+function getYouTubeEmbedUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/^www\./, "");
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    let videoId = "";
+
+    if (host === "youtu.be") {
+      videoId = pathParts[0] ?? "";
+    } else if (host === "youtube.com" || host === "m.youtube.com") {
+      if (pathParts[0] === "embed" || pathParts[0] === "shorts" || pathParts[0] === "live") {
+        videoId = pathParts[1] ?? "";
+      } else {
+        videoId = url.searchParams.get("v") ?? "";
+      }
+    }
+
+    if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) return null;
+    return `https://www.youtube-nocookie.com/embed/${videoId}`;
+  } catch {
+    return null;
+  }
 }

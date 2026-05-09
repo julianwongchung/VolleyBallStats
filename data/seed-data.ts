@@ -110,6 +110,7 @@ export const seedData: AppData = {
       teamAScore: 3,
       teamBScore: 1,
       remarks: "Strong serve pressure carried the first two sets.",
+      videoUrl: null,
       createdAt: now,
       updatedAt: now
     },
@@ -122,6 +123,7 @@ export const seedData: AppData = {
       teamAScore: 1,
       teamBScore: 1,
       remarks: "Match paused after two close sets.",
+      videoUrl: null,
       createdAt: now,
       updatedAt: now
     }

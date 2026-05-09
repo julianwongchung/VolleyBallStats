@@ -25,7 +25,8 @@ const blankMatch: MatchInput = {
   status: "scheduled",
   teamAScore: 0,
   teamBScore: 0,
-  remarks: ""
+  remarks: "",
+  videoUrl: ""
 };
 
 export function MatchesPage() {
@@ -34,8 +35,8 @@ export function MatchesPage() {
   const [form, setForm] = useState<MatchInput>(blankMatch);
   const [selectedMatchId, setSelectedMatchId] = useState(data.matches[0]?.id ?? "");
   const [selectedTeamId, setSelectedTeamId] = useState("");
-  const [collapsedDates, setCollapsedDates] = useState<Set<string>>(() => new Set());
-  const [playersCollapsed, setPlayersCollapsed] = useState(false);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set());
+  const [playersCollapsed, setPlayersCollapsed] = useState(true);
   const [error, setError] = useState("");
 
   const selectedMatch = useMemo(
@@ -102,14 +103,15 @@ export function MatchesPage() {
       status: match.status,
       teamAScore: match.teamAScore ?? 0,
       teamBScore: match.teamBScore ?? 0,
-      remarks: match.remarks ?? ""
+      remarks: match.remarks ?? "",
+      videoUrl: match.videoUrl ?? ""
     });
     setSelectedMatchId(match.id);
     setSelectedTeamId(match.teamAId);
   }
 
   function toggleDateGroup(date: string) {
-    setCollapsedDates((current) => {
+    setExpandedDates((current) => {
       const next = new Set(current);
       if (next.has(date)) {
         next.delete(date);
@@ -214,6 +216,15 @@ export function MatchesPage() {
           </label>
         </div>
         <label>
+          YouTube video link
+          <input
+            placeholder="https://www.youtube.com/watch?v=..."
+            type="url"
+            value={form.videoUrl ?? ""}
+            onChange={(event) => setForm({ ...form, videoUrl: event.target.value })}
+          />
+        </label>
+        <label>
           Remarks
           <textarea
             rows={3}
@@ -234,7 +245,7 @@ export function MatchesPage() {
         <div className="match-record-list">
           {data.matches.length === 0 ? <EmptyState title="No matches yet" body="Create a match to start recording stats." /> : null}
           {matchGroups.map((group) => {
-            const collapsed = collapsedDates.has(group.date);
+            const collapsed = !expandedDates.has(group.date);
 
             return (
               <article className="match-date-group" key={group.date}>
@@ -400,7 +411,8 @@ function normalizeMatch(input: MatchInput): MatchInput {
   return {
     ...input,
     teamAScore: Number(input.teamAScore ?? 0),
-    teamBScore: Number(input.teamBScore ?? 0)
+    teamBScore: Number(input.teamBScore ?? 0),
+    videoUrl: input.videoUrl?.trim() || null
   };
 }
 

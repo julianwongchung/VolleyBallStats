@@ -74,12 +74,14 @@ create table if not exists public.matches (
   team_a_score integer check (team_a_score is null or team_a_score >= 0),
   team_b_score integer check (team_b_score is null or team_b_score >= 0),
   remarks text,
+  video_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (team_a_id <> team_b_id)
 );
 
 alter table public.matches add column if not exists remarks text;
+alter table public.matches add column if not exists video_url text;
 
 create table if not exists public.match_stats (
   id uuid primary key default gen_random_uuid(),

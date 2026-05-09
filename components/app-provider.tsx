@@ -55,6 +55,8 @@ type AppContextValue = SessionState & {
 };
 
 const STORAGE_KEY = "volleystats-demo-data-v1";
+const MISSING_VIDEO_URL_COLUMN_MESSAGE =
+  "Supabase is missing the matches.video_url column. Run: alter table public.matches add column if not exists video_url text;";
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -490,14 +492,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const createMatch = useCallback(
     async (input: MatchInput) => {
-      validateMatch(input);
+      const nextInput = normalizeMatchInput(input);
+      validateMatch(nextInput);
       const timestamp = new Date().toISOString();
       if (supabase) {
-        const row = toMatchRow(input);
+        const row = toMatchRow(nextInput);
         const { error } = await supabase.from("matches").insert(row);
         if (error) {
-          if (!isMissingRemarksColumn(error)) throw new Error(error.message);
-          const { error: retryError } = await supabase.from("matches").insert(toMatchRowWithoutRemarks(input));
+          const omittedColumns = missingOptionalMatchColumns(error);
+          if (omittedColumns.length === 0) throw new Error(error.message);
+          if (omittedColumns.includes("video_url") && nextInput.videoUrl) throw new Error(MISSING_VIDEO_URL_COLUMN_MESSAGE);
+          const { error: retryError } = await supabase.from("matches").insert(toMatchRow(nextInput, omittedColumns));
           if (retryError) throw new Error(retryError.message);
         }
         await loadSupabaseData();
@@ -505,7 +510,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       const match: Match = {
         id: uid("match"),
-        ...input,
+        ...nextInput,
         createdAt: timestamp,
         updatedAt: timestamp
       };
@@ -516,15 +521,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateMatch = useCallback(
     async (id: string, input: MatchInput) => {
-      validateMatch(input);
+      const nextInput = normalizeMatchInput(input);
+      validateMatch(nextInput);
       if (supabase) {
-        const row = { ...toMatchRow(input), updated_at: new Date().toISOString() };
+        const row = { ...toMatchRow(nextInput), updated_at: new Date().toISOString() };
         const { error } = await supabase.from("matches").update(row).eq("id", id);
         if (error) {
-          if (!isMissingRemarksColumn(error)) throw new Error(error.message);
+          const omittedColumns = missingOptionalMatchColumns(error);
+          if (omittedColumns.length === 0) throw new Error(error.message);
+          if (omittedColumns.includes("video_url") && nextInput.videoUrl) throw new Error(MISSING_VIDEO_URL_COLUMN_MESSAGE);
           const { error: retryError } = await supabase
             .from("matches")
-            .update({ ...toMatchRowWithoutRemarks(input), updated_at: row.updated_at })
+            .update({ ...toMatchRow(nextInput, omittedColumns), updated_at: row.updated_at })
             .eq("id", id);
           if (retryError) throw new Error(retryError.message);
         }
@@ -534,7 +542,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       saveLocal({
         ...data,
         matches: data.matches.map((match) =>
-          match.id === id ? { ...match, ...input, updatedAt: new Date().toISOString() } : match
+          match.id === id ? { ...match, ...nextInput, updatedAt: new Date().toISOString() } : match
         )
       });
     },
@@ -713,6 +721,18 @@ function validateMatch(input: MatchInput) {
   if (!input.teamAId || !input.teamBId) throw new Error("Choose both teams.");
   if (input.teamAId === input.teamBId) throw new Error("Team A and Team B must be different.");
   if (!input.matchDate) throw new Error("Match date is required.");
+  const videoUrl = input.videoUrl?.trim();
+  if (videoUrl && !isYouTubeUrl(videoUrl)) {
+    throw new Error("Video link must be a valid YouTube URL.");
+  }
+}
+
+function normalizeMatchInput(input: MatchInput): MatchInput {
+  return {
+    ...input,
+    remarks: input.remarks?.trim() || null,
+    videoUrl: input.videoUrl?.trim() || null
+  };
 }
 
 function emptyStat(matchId: string, teamId: string, playerId: string): MatchStat {
@@ -780,6 +800,7 @@ function mapMatch(row: Record<string, any>): Match {
     teamAScore: row.team_a_score,
     teamBScore: row.team_b_score,
     remarks: row.remarks,
+    videoUrl: row.video_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -803,20 +824,8 @@ function mapMatchStat(row: Record<string, any>): MatchStat {
   };
 }
 
-function toMatchRow(input: MatchInput) {
-  return {
-    team_a_id: input.teamAId,
-    team_b_id: input.teamBId,
-    match_date: input.matchDate,
-    status: input.status,
-    team_a_score: input.teamAScore ?? null,
-    team_b_score: input.teamBScore ?? null,
-    remarks: input.remarks?.trim() || null
-  };
-}
-
-function toMatchRowWithoutRemarks(input: MatchInput) {
-  return {
+function toMatchRow(input: MatchInput, omittedColumns: OptionalMatchColumn[] = []) {
+  const row: Record<string, string | number | null> = {
     team_a_id: input.teamAId,
     team_b_id: input.teamBId,
     match_date: input.matchDate,
@@ -824,11 +833,32 @@ function toMatchRowWithoutRemarks(input: MatchInput) {
     team_a_score: input.teamAScore ?? null,
     team_b_score: input.teamBScore ?? null
   };
+
+  if (!omittedColumns.includes("remarks")) row.remarks = input.remarks?.trim() || null;
+  if (!omittedColumns.includes("video_url")) row.video_url = input.videoUrl?.trim() || null;
+
+  return row;
 }
 
-function isMissingRemarksColumn(error: { code?: string; message?: string; details?: string | null }) {
+type OptionalMatchColumn = "remarks" | "video_url";
+
+function missingOptionalMatchColumns(error: { code?: string; message?: string; details?: string | null }) {
   const text = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
-  return error.code === "PGRST204" || (text.includes("remarks") && text.includes("schema cache"));
+  if (error.code !== "PGRST204" && !text.includes("schema cache")) return [];
+
+  const columns: OptionalMatchColumn[] = [];
+  if (text.includes("remarks")) columns.push("remarks");
+  if (text.includes("video_url")) columns.push("video_url");
+  return columns;
+}
+
+function isYouTubeUrl(value: string) {
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    return host === "youtube.com" || host === "m.youtube.com" || host === "youtu.be";
+  } catch {
+    return false;
+  }
 }
 
 function toMatchStatRow(stat: MatchStat) {

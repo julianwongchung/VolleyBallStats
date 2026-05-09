@@ -77,6 +77,7 @@ export type Match = {
   teamAScore?: number | null;
   teamBScore?: number | null;
   remarks?: string | null;
+  videoUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -132,4 +133,5 @@ export type MatchInput = {
   teamAScore?: number | null;
   teamBScore?: number | null;
   remarks?: string | null;
+  videoUrl?: string | null;
 };
