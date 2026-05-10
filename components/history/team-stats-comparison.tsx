@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import { BarChart3, X } from "lucide-react";
 import type { TeamComparisonTotals } from "@/lib/data/selectors";
+import type { MatchStat } from "@/types/domain";
+import { statKeys, statShortLabels } from "@/types/domain";
 
 const rows = [
   { key: "attack", label: "Attack" },
@@ -12,19 +16,25 @@ const rows = [
 
 export function TeamStatsComparison({
   teamA,
-  teamB
+  teamAStats = [],
+  teamB,
+  teamBStats = [],
+  playerNameFor
 }: {
   teamA: TeamComparisonTotals;
+  teamAStats?: MatchStat[];
   teamB: TeamComparisonTotals;
+  teamBStats?: MatchStat[];
+  playerNameFor: (playerId: string) => string;
 }) {
   return (
     <section className="comparison-panel" aria-label="Match team statistics comparison">
       <div className="comparison-header">
-        <TeamHeader side="left" totals={teamA} />
+        <TeamHeader playerNameFor={playerNameFor} side="left" stats={teamAStats} totals={teamA} />
         <div className="comparison-title">
           <span>Match Stats</span>
         </div>
-        <TeamHeader side="right" totals={teamB} />
+        <TeamHeader playerNameFor={playerNameFor} side="right" stats={teamBStats} totals={teamB} />
       </div>
 
       <div className="comparison-rows">
@@ -64,11 +74,73 @@ export function TeamStatsComparison({
   );
 }
 
-function TeamHeader({ totals, side }: { totals: TeamComparisonTotals; side: "left" | "right" }) {
+function TeamHeader({
+  totals,
+  side,
+  stats,
+  playerNameFor
+}: {
+  totals: TeamComparisonTotals;
+  side: "left" | "right";
+  stats: MatchStat[];
+  playerNameFor: (playerId: string) => string;
+}) {
+  const [showStats, setShowStats] = useState(false);
+  const sortedStats = [...stats].sort((a, b) => {
+    const pointsA = a.attack + a.block + a.ace;
+    const pointsB = b.attack + b.block + b.ace;
+    return pointsB - pointsA || playerNameFor(a.playerId).localeCompare(playerNameFor(b.playerId));
+  });
+
   return (
     <div className={`comparison-team comparison-team-${side}`}>
-      <div className="comparison-logo">
-        {totals.team.logoUrl ? <img src={totals.team.logoUrl} alt="" /> : totals.team.name.slice(0, 2)}
+      <div className="comparison-team-tools">
+        <div className="comparison-logo">
+          {totals.team.logoUrl ? <img src={totals.team.logoUrl} alt="" /> : totals.team.name.slice(0, 2)}
+        </div>
+        <div className={`player-stats-popover player-stats-popover-${side}`}>
+          <button
+            aria-expanded={showStats}
+            className="icon-button compact-icon-button"
+            title={`View ${totals.team.name} player stats`}
+            type="button"
+            onClick={() => setShowStats((value) => !value)}
+          >
+            <BarChart3 size={16} />
+          </button>
+          {showStats ? (
+            <section className="player-stats-panel" aria-label={`${totals.team.name} player stats`}>
+              <div className="player-stats-heading">
+                <strong>{totals.team.name} Stats</strong>
+                <button type="button" title="Close player stats" onClick={() => setShowStats(false)}>
+                  <X size={16} />
+                </button>
+              </div>
+              {sortedStats.length === 0 ? (
+                <p className="player-stats-empty">No player stats recorded.</p>
+              ) : (
+                <div className="player-stats-table">
+                  <div className="player-stats-row player-stats-head">
+                    <span>Player</span>
+                    {statKeys.map((key) => (
+                      <span key={key}>{statShortLabels[key]}</span>
+                    ))}
+                    <span>PTS</span>
+                  </div>
+                  {sortedStats.map((stat) => (
+                    <div className="player-stats-row" key={stat.id}>
+                      <strong>{playerNameFor(stat.playerId)}</strong>
+                      {statKeys.map((key) => (
+                        <span key={key}>{stat[key]}</span>
+                      ))}
+                      <b>{stat.attack + stat.block + stat.ace}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
+        </div>
       </div>
       <strong>{totals.team.name}</strong>
     </div>

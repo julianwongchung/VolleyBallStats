@@ -9,7 +9,7 @@ import { TeamStatsComparison } from "@/components/history/team-stats-comparison"
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
-import { comparisonTotalsForMatch } from "@/lib/data/selectors";
+import { comparisonTotalsForMatch, playerById } from "@/lib/data/selectors";
 import type { MatchInput, MatchStatus } from "@/types/domain";
 
 export function MatchHistoryDetailPage({ matchId }: { matchId: string }) {
@@ -89,7 +89,13 @@ export function MatchHistoryDetailPage({ matchId }: { matchId: string }) {
 
       {comparison ? (
         <>
-          <TeamStatsComparison teamA={comparison.teamA} teamB={comparison.teamB} />
+          <TeamStatsComparison
+            playerNameFor={(playerId) => playerById(data, playerId)?.name ?? "Unknown player"}
+            teamA={comparison.teamA}
+            teamAStats={data.matchStats.filter((stat) => stat.matchId === match.id && stat.teamId === match.teamAId)}
+            teamB={comparison.teamB}
+            teamBStats={data.matchStats.filter((stat) => stat.matchId === match.id && stat.teamId === match.teamBId)}
+          />
           {match.remarks ? <MatchRemarks remarks={match.remarks} /> : null}
           {match.videoUrl ? <MatchVideoEmbed url={match.videoUrl} /> : null}
         </>

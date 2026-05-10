@@ -1831,6 +1831,7 @@ label {
 }
 
 .history-card {
+  position: relative;
   display: grid;
   gap: 13px;
   padding: 14px;
@@ -1932,6 +1933,11 @@ label {
   flex-wrap: wrap;
 }
 
+.compact-icon-button {
+  width: 38px;
+  height: 38px;
+}
+
 .history-remarks {
   display: grid;
   gap: 4px;
@@ -1987,6 +1993,17 @@ label {
   min-width: 0;
 }
 
+.comparison-team-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+}
+
+.comparison-team-right .comparison-team-tools {
+  flex-direction: row-reverse;
+}
+
 .comparison-team-left {
   justify-items: start;
   text-align: left;
@@ -2000,14 +2017,111 @@ label {
 .comparison-team strong {
   max-width: 100%;
   overflow-wrap: anywhere;
-  font-size: 22px;
-  line-height: 1.1;
+  font-size: 16px;
+  line-height: 1.15;
 }
 
 .comparison-logo {
   width: 62px;
   height: 62px;
   font-size: 18px;
+}
+
+.player-stats-popover {
+  position: relative;
+}
+
+.player-stats-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 10px;
+  width: min(86vw, 520px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.player-stats-popover-left .player-stats-panel {
+  right: auto;
+  left: 0;
+}
+
+.player-stats-popover-right .player-stats-panel {
+  right: 0;
+  left: auto;
+}
+
+.player-stats-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.player-stats-heading strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.player-stats-heading button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.player-stats-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.player-stats-table {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.player-stats-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.5fr) repeat(6, minmax(34px, 0.5fr)) minmax(38px, 0.5fr);
+  gap: 6px;
+  min-width: 420px;
+  align-items: center;
+  padding: 9px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.player-stats-row:first-child {
+  border-top: 0;
+}
+
+.player-stats-head {
+  color: var(--muted);
+  background: #f7f9fa;
+  font-weight: 900;
+}
+
+.player-stats-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.player-stats-row span,
+.player-stats-row b {
+  text-align: center;
 }
 
 .comparison-rows {
@@ -2239,6 +2353,10 @@ label {
   .comparison-row > strong {
     order: 0;
     grid-column: auto;
+  }
+
+  .comparison-team strong {
+    font-size: 20px;
   }
 
   .comparison-value-block.left {
