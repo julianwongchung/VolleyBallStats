@@ -43,7 +43,8 @@ type AppContextValue = SessionState & {
   login: (email: string, password: string) => Promise<void>;
   loginAsDemoAdmin: () => void;
   logout: () => Promise<void>;
-  addAdminUser: (input: { userId: string; email?: string }) => Promise<void>;
+  addAdminUser: (input: { email: string; password: string }) => Promise<void>;
+  resetAdminPassword: (input: { userId: string; password: string }) => Promise<void>;
   removeAdminUser: (userId: string) => Promise<void>;
   createTeam: (input: TeamInput, logo?: File | null) => Promise<void>;
   updateTeam: (id: string, input: TeamInput, logo?: File | null, removeLogo?: boolean) => Promise<void>;
@@ -216,21 +217,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [supabase]);
 
   const addAdminUser = useCallback(
-    async ({ userId, email }: { userId: string; email?: string }) => {
-      const normalizedUserId = userId.trim();
-      const normalizedEmail = email?.trim() || null;
-      if (!isUuid(normalizedUserId)) throw new Error("Enter a valid Supabase Auth user UID.");
+    async ({ email, password }: { email: string; password: string }) => {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!isEmail(normalizedEmail)) throw new Error("Enter a valid email address.");
+      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
 
       if (supabase) {
-        const { error } = await supabase.from("admin_users").upsert({
-          user_id: normalizedUserId,
-          email: normalizedEmail
+        const response = await fetch("/api/admin-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalizedEmail, password })
         });
-        if (error) {
-          if (error.message.toLowerCase().includes("foreign key")) {
-            throw new Error("No Supabase Auth user exists for that UID.");
-          }
-          throw new Error(error.message);
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Unable to add admin user.");
         }
         await refreshAdminUsers();
         return;
@@ -238,14 +238,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       setAdminUsers((current) => {
         const nextUser: AdminUser = {
-          userId: normalizedUserId,
+          userId: uid("admin"),
           email: normalizedEmail,
           createdAt: new Date().toISOString()
         };
-        return [nextUser, ...current.filter((user) => user.userId !== normalizedUserId)];
+        return [nextUser, ...current.filter((user) => user.email !== normalizedEmail)];
       });
     },
     [refreshAdminUsers, supabase]
+  );
+
+  const resetAdminPassword = useCallback(
+    async ({ userId, password }: { userId: string; password: string }) => {
+      if (!userId) throw new Error("Choose an admin user.");
+      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+
+      if (supabase) {
+        const response = await fetch("/api/admin-users", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, password })
+        });
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Unable to reset password.");
+        }
+      }
+    },
+    [supabase]
   );
 
   const removeAdminUser = useCallback(
@@ -786,6 +806,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loginAsDemoAdmin,
       logout,
       addAdminUser,
+      resetAdminPassword,
       removeAdminUser,
       createTeam,
       updateTeam,
@@ -819,6 +840,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refresh,
       refreshAdminUsers,
       removeAdminUser,
+      resetAdminPassword,
       setMatchPlayer,
       session,
       updateMatch,
@@ -841,8 +863,8 @@ function requireName(value: string, label: string) {
   if (!value.trim()) throw new Error(`${label} is required.`);
 }
 
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function validatePlayer(input: PlayerInput) {

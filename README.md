@@ -26,9 +26,9 @@ If `.env.local` is missing, the app uses local seeded demo data. Visit `/login` 
 
 1. Create a Supabase project on the Free Plan.
 2. Open the SQL Editor and run `supabase/schema.sql`.
-3. Create an admin user in Supabase Auth using email/password.
+3. Create your first admin user in Supabase Auth using email/password.
 4. Copy the new user's UUID from `auth.users`.
-5. In the SQL Editor, run:
+5. In the SQL Editor, run this once for the first admin:
 
 ```sql
 insert into public.admin_users (user_id, email)
@@ -40,7 +40,10 @@ values ('AUTH_USER_UUID_HERE', 'admin@example.com');
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_or_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_for_server_api_routes_only
 ```
+
+After the first admin can log in, open `/admin-users` in the app to create more admins with only an email and temporary password. The app also lets admins set a new password for another admin. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only; never rename it with `NEXT_PUBLIC_` and never commit `.env.local`.
 
 Supabase Auth SSR uses `@supabase/ssr` with browser, server, and proxy clients.
 
@@ -53,6 +56,7 @@ Supabase Auth SSR uses `@supabase/ssr` with browser, server, and proxy clients.
 ```bash
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY
 ```
 
 4. Deploy with the default Vercel Next.js settings.
