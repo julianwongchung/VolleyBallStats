@@ -14,6 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { uid } from "@/lib/utils";
 import type {
+  AdminUser,
   AppData,
   Match,
   MatchInput,
@@ -30,15 +31,20 @@ type SessionState = {
   isConfigured: boolean;
   isAdmin: boolean;
   isLoading: boolean;
+  userId: string | null;
   userEmail: string | null;
 };
 
 type AppContextValue = SessionState & {
   data: AppData;
+  adminUsers: AdminUser[];
   refresh: () => Promise<void>;
+  refreshAdminUsers: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   loginAsDemoAdmin: () => void;
   logout: () => Promise<void>;
+  addAdminUser: (input: { userId: string; email?: string }) => Promise<void>;
+  removeAdminUser: (userId: string) => Promise<void>;
   createTeam: (input: TeamInput, logo?: File | null) => Promise<void>;
   updateTeam: (id: string, input: TeamInput, logo?: File | null, removeLogo?: boolean) => Promise<void>;
   archiveTeam: (id: string, archived: boolean) => Promise<void>;
@@ -66,8 +72,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isConfigured: isSupabaseConfigured,
     isAdmin: false,
     isLoading: true,
+    userId: null,
     userEmail: null
   });
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -102,13 +110,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [supabase]);
 
+  const refreshAdminUsers = useCallback(async () => {
+    if (!supabase) return;
+    const { data: rows, error } = await supabase
+      .from("admin_users")
+      .select("user_id,email,created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    setAdminUsers((rows ?? []).map(mapAdminUser));
+  }, [supabase]);
+
   const refreshAdmin = useCallback(
     async (email?: string | null) => {
       if (!supabase) return false;
       const { data: userData } = await supabase.auth.getUser();
       const user = userData.user;
       if (!user) {
-        setSession((current) => ({ ...current, isAdmin: false, userEmail: null }));
+        setSession((current) => ({ ...current, isAdmin: false, userId: null, userEmail: null }));
+        setAdminUsers([]);
         return false;
       }
 
@@ -122,6 +141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSession((current) => ({
         ...current,
         isAdmin,
+        userId: user.id,
         userEmail: email ?? user.email ?? null
       }));
       return isAdmin;
@@ -141,7 +161,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async function boot() {
       try {
         if (supabase) {
-          await refreshAdmin();
+          const isAdmin = await refreshAdmin();
+          if (isAdmin) await refreshAdminUsers();
           await loadSupabaseData();
         } else if (typeof window !== "undefined") {
           const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -160,13 +181,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [loadSupabaseData, refreshAdmin, supabase]);
+  }, [loadSupabaseData, refreshAdmin, refreshAdminUsers, supabase]);
 
   const login = useCallback(
     async (email: string, password: string) => {
       if (!email || !password) throw new Error("Email and password are required.");
       if (!supabase) {
-        setSession({ isConfigured: false, isAdmin: true, isLoading: false, userEmail: email });
+        setSession({ isConfigured: false, isAdmin: true, isLoading: false, userId: "demo-admin", userEmail: email });
+        setAdminUsers([{ userId: "demo-admin", email, createdAt: new Date().toISOString() }]);
         return;
       }
 
@@ -177,19 +199,70 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut();
         throw new Error("This account is not listed in admin_users.");
       }
-      await loadSupabaseData();
+      await Promise.all([loadSupabaseData(), refreshAdminUsers()]);
     },
-    [loadSupabaseData, refreshAdmin, supabase]
+    [loadSupabaseData, refreshAdmin, refreshAdminUsers, supabase]
   );
 
   const loginAsDemoAdmin = useCallback(() => {
-    setSession({ isConfigured: false, isAdmin: true, isLoading: false, userEmail: "demo@local" });
+    setSession({ isConfigured: false, isAdmin: true, isLoading: false, userId: "demo-admin", userEmail: "demo@local" });
+    setAdminUsers([{ userId: "demo-admin", email: "demo@local", createdAt: new Date().toISOString() }]);
   }, []);
 
   const logout = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
-    setSession((current) => ({ ...current, isAdmin: false, userEmail: null }));
+    setSession((current) => ({ ...current, isAdmin: false, userId: null, userEmail: null }));
+    setAdminUsers([]);
   }, [supabase]);
+
+  const addAdminUser = useCallback(
+    async ({ userId, email }: { userId: string; email?: string }) => {
+      const normalizedUserId = userId.trim();
+      const normalizedEmail = email?.trim() || null;
+      if (!isUuid(normalizedUserId)) throw new Error("Enter a valid Supabase Auth user UID.");
+
+      if (supabase) {
+        const { error } = await supabase.from("admin_users").upsert({
+          user_id: normalizedUserId,
+          email: normalizedEmail
+        });
+        if (error) {
+          if (error.message.toLowerCase().includes("foreign key")) {
+            throw new Error("No Supabase Auth user exists for that UID.");
+          }
+          throw new Error(error.message);
+        }
+        await refreshAdminUsers();
+        return;
+      }
+
+      setAdminUsers((current) => {
+        const nextUser: AdminUser = {
+          userId: normalizedUserId,
+          email: normalizedEmail,
+          createdAt: new Date().toISOString()
+        };
+        return [nextUser, ...current.filter((user) => user.userId !== normalizedUserId)];
+      });
+    },
+    [refreshAdminUsers, supabase]
+  );
+
+  const removeAdminUser = useCallback(
+    async (userId: string) => {
+      if (userId === session.userId) throw new Error("You cannot remove your own admin access while signed in.");
+
+      if (supabase) {
+        const { error } = await supabase.from("admin_users").delete().eq("user_id", userId);
+        if (error) throw new Error(error.message);
+        await refreshAdminUsers();
+        return;
+      }
+
+      setAdminUsers((current) => current.filter((user) => user.userId !== userId));
+    },
+    [refreshAdminUsers, session.userId, supabase]
+  );
 
   const replacePlayerTeams = useCallback(
     async (playerId: string, teamIds: string[]) => {
@@ -706,10 +779,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       ...session,
       data,
+      adminUsers,
       refresh,
+      refreshAdminUsers,
       login,
       loginAsDemoAdmin,
       logout,
+      addAdminUser,
+      removeAdminUser,
       createTeam,
       updateTeam,
       archiveTeam,
@@ -727,6 +804,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [
       archivePlayer,
       archiveTeam,
+      addAdminUser,
+      adminUsers,
       createMatch,
       createPlayer,
       createTeam,
@@ -738,6 +817,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loginAsDemoAdmin,
       logout,
       refresh,
+      refreshAdminUsers,
+      removeAdminUser,
       setMatchPlayer,
       session,
       updateMatch,
@@ -758,6 +839,10 @@ export function useApp() {
 
 function requireName(value: string, label: string) {
   if (!value.trim()) throw new Error(`${label} is required.`);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function validatePlayer(input: PlayerInput) {
@@ -837,6 +922,14 @@ function mapPlayerTeam(row: Record<string, any>): PlayerTeam {
     id: row.id,
     playerId: row.player_id,
     teamId: row.team_id,
+    createdAt: row.created_at
+  };
+}
+
+function mapAdminUser(row: Record<string, any>): AdminUser {
+  return {
+    userId: row.user_id,
+    email: row.email,
     createdAt: row.created_at
   };
 }

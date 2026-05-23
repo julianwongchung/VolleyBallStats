@@ -1920,6 +1920,39 @@ label {
   padding-top: 2px;
 }
 
+.admin-user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-user-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.admin-user-card strong,
+.admin-user-card code {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-card code {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-user-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .history-filter-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -2455,6 +2488,11 @@ label {
 
   .stat-total-grid {
     grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .admin-user-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
   }
 
   .comparison-header {

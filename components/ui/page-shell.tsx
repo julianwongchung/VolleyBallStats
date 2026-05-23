@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, CalendarDays, History, Home, LogIn, LogOut, Shield, Users, UserRound } from "lucide-react";
+import { BarChart3, CalendarDays, History, Home, LogIn, LogOut, Shield, UserCog, Users, UserRound } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,11 @@ export function PageShell({
         </div>
         <div className="topbar-actions">
           {action}
+          {isAdmin ? (
+            <Link className="icon-button" href="/admin-users" title="Admin users">
+              <UserCog size={18} />
+            </Link>
+          ) : null}
           <div className={cn("mode-pill", isAdmin ? "mode-admin" : "mode-guest")}>
             <Shield size={15} />
             <span>{isAdmin ? "Admin" : "Guest"}</span>

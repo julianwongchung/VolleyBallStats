@@ -109,6 +109,7 @@ export type AppData = {
 export type AdminUser = {
   userId: string;
   email: string | null;
+  createdAt: string;
 };
 
 export type TeamInput = {
