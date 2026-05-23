@@ -862,30 +862,6 @@ h2 {
   background: var(--surface-2);
 }
 
-.team-admin-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: #ffffff;
-}
-
-.team-admin-hint span {
-  min-width: 0;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 750;
-  line-height: 1.25;
-}
-
-.team-admin-hint a {
-  flex: 0 0 auto;
-}
-
 select,
 input,
 textarea {
@@ -2097,6 +2073,14 @@ label {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.share-status {
+  margin: -2px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
 }
 
 .compact-icon-button {

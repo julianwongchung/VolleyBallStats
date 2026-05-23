@@ -140,15 +140,6 @@ export function TeamsPage() {
         </div>
       </div>
 
-      {!isAdmin ? (
-        <div className="team-admin-hint">
-          <span>Admin mode is required to edit team information.</span>
-          <Link className="secondary-button compact-button" href="/login">
-            Admin login
-          </Link>
-        </div>
-      ) : null}
-
       {isAdmin ? (
         <form className="form-panel" onSubmit={(event) => void submit(event)} ref={formRef}>
           <div className="form-title">
