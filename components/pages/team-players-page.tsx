@@ -12,6 +12,19 @@ import { cn } from "@/lib/utils";
 import type { Player } from "@/types/domain";
 
 const playerPositions = ["OPEN", "MIDDLE BLOCKER", "SETTER", "SUBSET", "LIBERO", "COACH"];
+const positionShortLabels: Record<string, string> = {
+  "MIDDLE BLOCKER": "MB",
+  COACH: "COACH",
+  LIBERO: "L",
+  MB: "MB",
+  OPP: "O",
+  OPEN: "OH",
+  SETTER: "S",
+  SUBSET: "O",
+  L: "L",
+  OH: "OH",
+  S: "S"
+};
 
 const blankPlayer = {
   name: "",
@@ -32,7 +45,7 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
   const players = useMemo(() => {
     return playersForTeam(data, teamId)
       .filter((player) => !player.archived)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
   }, [data, teamId]);
 
   async function submit(event: React.FormEvent) {
@@ -84,7 +97,7 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
     <PageShell
       title={`${team.name} Players`}
       action={
-        <Link className="secondary-button" href="/players">
+        <Link className="secondary-button" href={isAdmin ? "/players" : "/teams"}>
           Teams
         </Link>
       }
@@ -151,18 +164,18 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
         </form>
       ) : null}
 
-      <section className="card-list">
-        {players.length === 0 ? <EmptyState title="No players found" body="Add players to this team to show them here." /> : null}
-        {players.map((player) => (
-          <article className={cn("entity-card", player.archived && "muted-card")} key={player.id}>
-            <div className="avatar">{player.photoUrl ? <img src={player.photoUrl} alt="" /> : player.jerseyNumber}</div>
-            <div className="entity-main">
-              <h2>{player.name}</h2>
-              <p>
-                #{player.jerseyNumber} {player.position ? `- ${player.position}` : ""}
-              </p>
-            </div>
-            {isAdmin ? (
+      {isAdmin ? (
+        <section className="card-list">
+          {players.length === 0 ? <EmptyState title="No players found" body="Add players to this team to show them here." /> : null}
+          {players.map((player) => (
+            <article className={cn("entity-card", player.archived && "muted-card")} key={player.id}>
+              <div className="avatar">{player.photoUrl ? <img src={player.photoUrl} alt="" /> : player.jerseyNumber}</div>
+              <div className="entity-main">
+                <h2>{player.name}</h2>
+                <p>
+                  #{player.jerseyNumber} {player.position ? `- ${player.position}` : ""}
+                </p>
+              </div>
               <div className="row-actions">
                 <button type="button" onClick={() => startEdit(player)} title="Edit player">
                   <Edit3 size={16} />
@@ -180,10 +193,73 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
                   <Trash2 size={16} />
                 </button>
               </div>
-            ) : null}
-          </article>
-        ))}
-      </section>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <GuestRosterTable players={players} />
+      )}
     </PageShell>
   );
+}
+
+function GuestRosterTable({ players }: { players: Player[] }) {
+  if (players.length === 0) {
+    return <EmptyState title="No players found" body="No players have been assigned to this team yet." />;
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        borderRadius: 8,
+        marginInline: "auto",
+        maxWidth: 430,
+        overflow: "hidden",
+        width: "100%"
+      }}
+    >
+      <table style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #ff0050" }}>
+            <th style={guestRosterHeaderStyle}>No.</th>
+            <th style={{ ...guestRosterHeaderStyle, textAlign: "left", width: "54%" }}>Player Name</th>
+            <th style={guestRosterHeaderStyle}>Position</th>
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player, index) => (
+            <tr key={player.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#f4f4f4" }}>
+              <td style={{ ...guestRosterCellStyle, color: "#ff0050", fontWeight: 500 }}>{player.jerseyNumber}</td>
+              <td style={{ ...guestRosterCellStyle, fontWeight: 850, textAlign: "left" }}>{player.name}</td>
+              <td style={{ ...guestRosterCellStyle, fontWeight: 850 }}>{formatPosition(player.position)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const guestRosterHeaderStyle: React.CSSProperties = {
+  color: "#8a8a8a",
+  fontSize: 13,
+  fontWeight: 500,
+  height: 40,
+  padding: "0 12px",
+  textAlign: "center"
+};
+
+const guestRosterCellStyle: React.CSSProperties = {
+  color: "var(--text)",
+  fontSize: 17,
+  height: 46,
+  padding: "0 12px",
+  textAlign: "center",
+  verticalAlign: "middle"
+};
+
+function formatPosition(position?: string | null) {
+  if (!position) return "";
+  return positionShortLabels[position] ?? position;
 }
