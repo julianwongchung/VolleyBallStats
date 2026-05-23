@@ -32,7 +32,9 @@ export function PageShell({
     <div className="app-frame">
       <header className="topbar">
         <div>
-          <p className="brand">VolleyStats</p>
+          <Link className="brand-logo-link" href="/" aria-label="VolleyStats home">
+            <img src="/brand/volleystats-logo.png" alt="VolleyStats" />
+          </Link>
           <h1>{title}</h1>
         </div>
         <div className="topbar-actions">

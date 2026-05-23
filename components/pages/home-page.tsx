@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Award, CalendarCheck, Flame, ShieldCheck, Trophy, Users, UserRound } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { displayTeam, recentMatches, teamById, topByStat, topScorer } from "@/lib/data/selectors";
+import { formatDateBadge } from "@/lib/utils";
 import { PageShell } from "@/components/ui/page-shell";
 import type { Match, Team } from "@/types/domain";
 
@@ -101,9 +102,8 @@ function HomeMatchCard({ match, teamA, teamB }: { match: Match; teamA?: Team; te
   const dateParts = formatMatchCardDate(match.matchDate);
   const scoreA = match.teamAScore ?? 0;
   const scoreB = match.teamBScore ?? 0;
-
-  return (
-    <Link className="home-recent-card" href={isCompleted ? `/history/${match.id}` : "/history"}>
+  const content = (
+    <>
       <div className="home-match-main">
         <span className={`status home-recent-status status-${match.status}`}>{match.status.replace("_", " ")}</span>
         <HomeMatchTeam team={teamA} />
@@ -124,6 +124,14 @@ function HomeMatchCard({ match, teamA, teamB }: { match: Match; teamA?: Team; te
           </>
         )}
       </div>
+    </>
+  );
+
+  if (!isCompleted) return <article className="home-recent-card home-recent-card-static">{content}</article>;
+
+  return (
+    <Link className="home-recent-card" href={`/history/${match.id}`}>
+      {content}
     </Link>
   );
 }
@@ -147,12 +155,7 @@ function initials(name?: string) {
 }
 
 function formatMatchCardDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  return {
-    day: new Intl.DateTimeFormat("en", { day: "2-digit" }).format(date),
-    month: new Intl.DateTimeFormat("en", { month: "short" }).format(date).toUpperCase(),
-    time: "TBD"
-  };
+  return formatDateBadge(value);
 }
 
 function Metric({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {

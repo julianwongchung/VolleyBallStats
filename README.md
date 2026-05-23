@@ -57,6 +57,15 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 4. Deploy with the default Vercel Next.js settings.
 
+## Mobile Full-Screen App Mode
+
+Mobile Safari and Chrome do not let a normal browser tab hide the URL bar permanently. To use VolleyStats like a full-screen app, install it to the phone home screen:
+
+- iPhone Safari: open the site, tap Share, then choose **Add to Home Screen**.
+- Android Chrome: open the site, tap the menu, then choose **Install app** or **Add to Home screen**.
+
+The project includes a web app manifest, mobile web app metadata, icons, and service worker registration so installed launches use standalone app mode.
+
 ## Database Tables
 
 - `teams`

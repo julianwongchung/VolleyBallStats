@@ -40,7 +40,7 @@ type AppContextValue = SessionState & {
   loginAsDemoAdmin: () => void;
   logout: () => Promise<void>;
   createTeam: (input: TeamInput, logo?: File | null) => Promise<void>;
-  updateTeam: (id: string, input: TeamInput, logo?: File | null) => Promise<void>;
+  updateTeam: (id: string, input: TeamInput, logo?: File | null, removeLogo?: boolean) => Promise<void>;
   archiveTeam: (id: string, archived: boolean) => Promise<void>;
   deleteTeam: (id: string) => Promise<void>;
   createPlayer: (input: PlayerInput, photo?: File | null) => Promise<void>;
@@ -282,7 +282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const updateTeam = useCallback(
-    async (id: string, input: TeamInput, logo?: File | null) => {
+    async (id: string, input: TeamInput, logo?: File | null, removeLogo = false) => {
       requireName(input.name, "Team name");
       if (supabase) {
         const patch: Record<string, unknown> = {
@@ -291,6 +291,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           archived: Boolean(input.archived),
           updated_at: new Date().toISOString()
         };
+        if (removeLogo) {
+          patch.logo_path = null;
+          patch.logo_url = null;
+        }
         const { error } = await supabase.from("teams").update(patch).eq("id", id);
         if (error) throw new Error(error.message);
         if (logo) await uploadTeamLogo(id, logo);
@@ -307,7 +311,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 name: input.name.trim(),
                 description: input.description?.trim() || null,
                 archived: Boolean(input.archived),
-                logoUrl: logo ? URL.createObjectURL(logo) : team.logoUrl,
+                logoUrl: logo ? URL.createObjectURL(logo) : removeLogo ? null : team.logoUrl,
+                logoPath: logo || removeLogo ? null : team.logoPath,
                 updatedAt: new Date().toISOString()
               }
             : team

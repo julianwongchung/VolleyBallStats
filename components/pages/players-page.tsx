@@ -8,7 +8,7 @@ import { useApp } from "@/components/app-provider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
 
-const playerPositions = ["OPEN", "MIDDLE BLOCKER", "SETTER", "SUBSET", "LIBERO", "COACH"];
+const playerPositions = ["OP", "MB", "SET", "SUB", "LB", "COACH"];
 
 const blankPlayer = {
   name: "",

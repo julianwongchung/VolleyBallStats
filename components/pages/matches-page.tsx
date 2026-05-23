@@ -22,7 +22,7 @@ import { statKeys, statShortLabels } from "@/types/domain";
 const blankMatch: MatchInput = {
   teamAId: "",
   teamBId: "",
-  matchDate: todayIsoDate(),
+  matchDate: "",
   status: "scheduled",
   teamAScore: 0,
   teamBScore: 0,
@@ -105,7 +105,7 @@ export function MatchesPage() {
         await createMatch(normalizeMatch(form));
       }
       setEditing(null);
-      setForm(blankMatch);
+      setForm(newMatchDefaults());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save match.");
     }
@@ -400,17 +400,17 @@ export function MatchesPage() {
               type="button"
               onClick={() => setScoreDetailsOpen(true)}
             >
-              <strong className="match-live-team match-live-team-left">
-                {displayTeam(teamById(data, selectedMatch.teamAId))}
-              </strong>
+              <span className="match-live-team match-live-team-left" title={displayTeam(teamById(data, selectedMatch.teamAId))}>
+                <TeamLogo team={teamById(data, selectedMatch.teamAId)} />
+              </span>
               <div className="match-live-score" aria-label="Live score">
                 <b className="team-a-score">{selectedMatchScore.teamA}</b>
                 <span>:</span>
                 <b className="team-b-score">{selectedMatchScore.teamB}</b>
               </div>
-              <strong className="match-live-team match-live-team-right">
-                {displayTeam(teamById(data, selectedMatch.teamBId))}
-              </strong>
+              <span className="match-live-team match-live-team-right" title={displayTeam(teamById(data, selectedMatch.teamBId))}>
+                <TeamLogo team={teamById(data, selectedMatch.teamBId)} />
+              </span>
               <span className={`status status-${selectedMatch.status}`}>{selectedMatch.status.replace("_", " ")}</span>
             </button>
             <p className="stat-match-remarks">{selectedMatch.remarks || "No remarks"}</p>
@@ -521,6 +521,13 @@ function normalizeMatch(input: MatchInput): MatchInput {
     teamAScore: Number(input.teamAScore ?? 0),
     teamBScore: Number(input.teamBScore ?? 0),
     videoUrl: input.videoUrl?.trim() || null
+  };
+}
+
+function newMatchDefaults(): MatchInput {
+  return {
+    ...blankMatch,
+    matchDate: todayIsoDate()
   };
 }
 

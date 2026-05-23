@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, Edit3, ListFilter, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { confirmAction } from "@/components/ui/confirm-dialog";
@@ -9,9 +9,18 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
 import { playersForTeam } from "@/lib/data/selectors";
 import { cn } from "@/lib/utils";
+import type { Player } from "@/types/domain";
 import type { Team } from "@/types/domain";
 
 const blankTeam = { name: "", description: "", archived: false };
+const positionDisplayLabels: Record<string, string> = {
+  LIBERO: "LB",
+  "MIDDLE BLOCKER": "MB",
+  OPEN: "OP",
+  SETTER: "SET",
+  Set: "SET",
+  SUBSET: "SUB"
+};
 
 export function TeamsPage() {
   const { data, isAdmin, createTeam, updateTeam, archiveTeam, deleteTeam } = useApp();
@@ -22,7 +31,9 @@ export function TeamsPage() {
   const [selectedGuestTeam, setSelectedGuestTeam] = useState<Team | null>(null);
   const [form, setForm] = useState(blankTeam);
   const [logo, setLogo] = useState<File | null>(null);
+  const [removeLogo, setRemoveLogo] = useState(false);
   const [error, setError] = useState("");
+  const formRef = useRef<HTMLFormElement | null>(null);
 
   const teams = useMemo(() => {
     return data.teams
@@ -39,7 +50,7 @@ export function TeamsPage() {
     if (!selectedGuestTeam) return [];
     return playersForTeam(data, selectedGuestTeam.id)
       .filter((player) => !player.archived)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
   }, [data, selectedGuestTeam]);
 
   useEffect(() => {
@@ -58,13 +69,14 @@ export function TeamsPage() {
     setError("");
     try {
       if (editing) {
-        await updateTeam(editing.id, form, logo);
+        await updateTeam(editing.id, form, logo, removeLogo);
       } else {
         await createTeam(form, logo);
       }
       setEditing(null);
       setForm(blankTeam);
       setLogo(null);
+      setRemoveLogo(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save team.");
     }
@@ -78,6 +90,16 @@ export function TeamsPage() {
       archived: team.archived
     });
     setLogo(null);
+    setRemoveLogo(false);
+    window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setForm(blankTeam);
+    setLogo(null);
+    setRemoveLogo(false);
+    setError("");
   }
 
   return (
@@ -118,12 +140,21 @@ export function TeamsPage() {
         </div>
       </div>
 
+      {!isAdmin ? (
+        <div className="team-admin-hint">
+          <span>Admin mode is required to edit team information.</span>
+          <Link className="secondary-button compact-button" href="/login">
+            Admin login
+          </Link>
+        </div>
+      ) : null}
+
       {isAdmin ? (
-        <form className="form-panel" onSubmit={(event) => void submit(event)}>
+        <form className="form-panel" onSubmit={(event) => void submit(event)} ref={formRef}>
           <div className="form-title">
             <h2>{editing ? "Edit Team" : "Create Team"}</h2>
             {editing ? (
-              <button type="button" className="text-button" onClick={() => setEditing(null)}>
+              <button type="button" className="text-button" onClick={cancelEdit}>
                 Cancel
               </button>
             ) : null}
@@ -144,8 +175,46 @@ export function TeamsPage() {
           <label className="file-input">
             <Upload size={16} />
             <span>{logo ? logo.name : "Upload team logo"}</span>
-            <input accept="image/*" type="file" onChange={(event) => setLogo(event.target.files?.[0] ?? null)} />
+            <input
+              accept="image/*"
+              type="file"
+              onChange={(event) => {
+                const nextLogo = event.target.files?.[0] ?? null;
+                setLogo(nextLogo);
+                if (nextLogo) setRemoveLogo(false);
+              }}
+            />
           </label>
+          {editing ? (
+            <div className="team-logo-edit">
+              <div className="team-logo-edit-preview">
+                {logo ? (
+                  <span>{logo.name}</span>
+                ) : editing.logoUrl && !removeLogo ? (
+                  <img src={editing.logoUrl} alt="" />
+                ) : (
+                  <span>No logo</span>
+                )}
+              </div>
+              <div>
+                <strong>Current logo</strong>
+                <p>{removeLogo ? "The logo will be removed when you save." : "Upload a new logo or remove the current one."}</p>
+                {editing.logoUrl || logo ? (
+                  <button
+                    className="danger-button compact-button"
+                    type="button"
+                    onClick={() => {
+                      setLogo(null);
+                      setRemoveLogo(true);
+                    }}
+                  >
+                    <Trash2 size={15} />
+                    Remove logo
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           <label className="checkbox-row">
             <input
               checked={form.archived}
@@ -189,10 +258,16 @@ export function TeamsPage() {
             )}
             {isAdmin ? (
               <div className="team-tile-actions">
-                <button type="button" onClick={() => startEdit(team)} title="Edit team">
+                <button className="team-edit-button" type="button" onClick={() => startEdit(team)}>
                   <Edit3 size={16} />
+                  <span>Edit</span>
                 </button>
-                <button type="button" onClick={() => void archiveTeam(team.id, !team.archived)} title="Archive team">
+                <button
+                  aria-label={team.archived ? "Restore team" : "Archive team"}
+                  type="button"
+                  onClick={() => void archiveTeam(team.id, !team.archived)}
+                  title={team.archived ? "Restore team" : "Archive team"}
+                >
                   <Archive size={16} />
                 </button>
                 <button
@@ -243,25 +318,7 @@ export function TeamsPage() {
               </button>
             </div>
 
-            <div className="roster-list">
-              {guestTeamPlayers.length === 0 ? (
-                <EmptyState title="No players found" body="This team does not have an active roster yet." />
-              ) : null}
-              {guestTeamPlayers.map((player) => (
-                <article className="roster-player" key={player.id}>
-                  <div className="avatar">
-                    {player.photoUrl ? <img src={player.photoUrl} alt="" /> : player.jerseyNumber}
-                  </div>
-                  <div>
-                    <strong>{player.name}</strong>
-                    <span>
-                      #{player.jerseyNumber}
-                      {player.position ? ` - ${player.position}` : ""}
-                    </span>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <GuestRosterTable players={guestTeamPlayers} />
           </section>
         </div>
       ) : null}
@@ -272,12 +329,67 @@ export function TeamsPage() {
 function TeamTileContent({ team }: { team: Team }) {
   return (
     <>
-      <span className="team-status-badge">{team.archived ? "INACTIVE" : "ACTIVE"}</span>
       <span className="team-logo-frame">{team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}</span>
       <span className="team-tile-name">{team.name}</span>
     </>
   );
 }
+
+function GuestRosterTable({ players }: { players: Player[] }) {
+  if (players.length === 0) {
+    return <EmptyState title="No players found" body="This team does not have an active roster yet." />;
+  }
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        borderRadius: 8,
+        marginInline: "auto",
+        maxWidth: 430,
+        overflow: "auto",
+        width: "100%"
+      }}
+    >
+      <table style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}>
+        <thead>
+          <tr style={{ borderBottom: "1px solid #ff0050" }}>
+            <th style={guestRosterHeaderStyle}>No.</th>
+            <th style={{ ...guestRosterHeaderStyle, textAlign: "left", width: "54%" }}>Player Name</th>
+            <th style={guestRosterHeaderStyle}>Position</th>
+          </tr>
+        </thead>
+        <tbody>
+          {players.map((player, index) => (
+            <tr key={player.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#f4f4f4" }}>
+              <td style={{ ...guestRosterCellStyle, color: "#ff0050", fontWeight: 500 }}>{player.jerseyNumber}</td>
+              <td style={{ ...guestRosterCellStyle, fontWeight: 850, textAlign: "left" }}>{player.name}</td>
+              <td style={{ ...guestRosterCellStyle, fontWeight: 850 }}>{displayPosition(player.position)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const guestRosterHeaderStyle: React.CSSProperties = {
+  color: "#8a8a8a",
+  fontSize: 13,
+  fontWeight: 500,
+  height: 40,
+  padding: "0 12px",
+  textAlign: "center"
+};
+
+const guestRosterCellStyle: React.CSSProperties = {
+  color: "var(--text)",
+  fontSize: 17,
+  height: 46,
+  padding: "0 12px",
+  textAlign: "center",
+  verticalAlign: "middle"
+};
 
 function initials(name: string) {
   return name
@@ -286,4 +398,9 @@ function initials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function displayPosition(position?: string | null) {
+  if (!position) return "";
+  return positionDisplayLabels[position] ?? position;
 }

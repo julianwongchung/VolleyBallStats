@@ -11,19 +11,14 @@ import { playersForTeam, teamById } from "@/lib/data/selectors";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/types/domain";
 
-const playerPositions = ["OPEN", "MIDDLE BLOCKER", "SETTER", "SUBSET", "LIBERO", "COACH"];
-const positionShortLabels: Record<string, string> = {
+const playerPositions = ["OP", "MB", "SET", "SUB", "LB", "COACH"];
+const positionDisplayLabels: Record<string, string> = {
+  LIBERO: "LB",
   "MIDDLE BLOCKER": "MB",
-  COACH: "COACH",
-  LIBERO: "L",
-  MB: "MB",
-  OPP: "O",
-  OPEN: "OH",
-  SETTER: "S",
-  SUBSET: "O",
-  L: "L",
-  OH: "OH",
-  S: "S"
+  OPEN: "OP",
+  SETTER: "SET",
+  Set: "SET",
+  SUBSET: "SUB"
 };
 
 const blankPlayer = {
@@ -232,7 +227,7 @@ function GuestRosterTable({ players }: { players: Player[] }) {
             <tr key={player.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#f4f4f4" }}>
               <td style={{ ...guestRosterCellStyle, color: "#ff0050", fontWeight: 500 }}>{player.jerseyNumber}</td>
               <td style={{ ...guestRosterCellStyle, fontWeight: 850, textAlign: "left" }}>{player.name}</td>
-              <td style={{ ...guestRosterCellStyle, fontWeight: 850 }}>{formatPosition(player.position)}</td>
+              <td style={{ ...guestRosterCellStyle, fontWeight: 850 }}>{displayPosition(player.position)}</td>
             </tr>
           ))}
         </tbody>
@@ -259,7 +254,7 @@ const guestRosterCellStyle: React.CSSProperties = {
   verticalAlign: "middle"
 };
 
-function formatPosition(position?: string | null) {
+function displayPosition(position?: string | null) {
   if (!position) return "";
-  return positionShortLabels[position] ?? position;
+  return positionDisplayLabels[position] ?? position;
 }
