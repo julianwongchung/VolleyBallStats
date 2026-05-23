@@ -64,7 +64,7 @@ img {
 
 .topbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   margin-bottom: 10px;
@@ -83,22 +83,27 @@ img {
 .brand-logo-link {
   display: flex;
   align-items: center;
-  justify-content: center;
-  grid-column: 2;
+  justify-content: flex-start;
+  justify-self: start;
+  grid-column: 1;
   grid-row: 1;
-  width: 72px;
-  height: 28px;
   margin: 0;
-  padding: 2px 4px;
   overflow: hidden;
   border-radius: 7px;
   background: transparent;
+}
+
+.brand-logo-mobile {
+  width: 140px;
+  height: 52px;
+  padding: 3px 0;
 }
 
 .brand-logo-link img {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  object-position: left center;
 }
 
 h1,
@@ -120,7 +125,7 @@ h2 {
 }
 
 .topbar-actions {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1;
   display: flex;
   align-items: center;
@@ -146,6 +151,7 @@ h2 {
   padding: 8px 10px;
   border: 1px solid var(--line);
   background: var(--surface);
+  text-decoration: none;
 }
 
 .mode-admin {
@@ -2442,10 +2448,10 @@ label {
     padding: 24px 22px 104px;
   }
 
-  .brand-logo-link {
-    width: 88px;
-    height: 32px;
-    padding: 2px 4px;
+  .brand-logo-desktop {
+    width: 170px;
+    height: 60px;
+    padding: 4px 0;
   }
 
   .metric-grid {
