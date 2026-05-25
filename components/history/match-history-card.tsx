@@ -18,17 +18,21 @@ export function MatchHistoryCard({
   isAdmin: boolean;
   onDelete: () => void;
 }) {
+  const teamAWins = isWinningScore(match.teamAScore, match.teamBScore);
+  const teamBWins = isWinningScore(match.teamBScore, match.teamAScore);
+
   return (
     <article className="history-card">
       <div className="history-teams">
-        <HistoryTeam team={teamA} align="left" />
+        <HistoryTeam team={teamA} align="left" isWinner={teamAWins} />
         <div className="history-score">
+          {match.remarks ? <p className="history-score-title">{match.remarks}</p> : null}
           <strong>
             {match.teamAScore ?? "-"} - {match.teamBScore ?? "-"}
           </strong>
           <span>Completed</span>
         </div>
-        <HistoryTeam team={teamB} align="right" />
+        <HistoryTeam team={teamB} align="right" isWinner={teamBWins} />
       </div>
       <div className="history-meta">
         <span>{formatDate(match.matchDate)}</span>
@@ -45,21 +49,22 @@ export function MatchHistoryCard({
           ) : null}
         </div>
       </div>
-      {match.remarks ? (
-        <p className="history-remarks">
-          <strong>Remarks</strong>
-          {match.remarks}
-        </p>
-      ) : null}
     </article>
   );
 }
 
-function HistoryTeam({ team, align }: { team?: Team; align: "left" | "right" }) {
+function HistoryTeam({ team, align, isWinner }: { team?: Team; align: "left" | "right"; isWinner: boolean }) {
   return (
     <div className={`history-team history-team-${align}`}>
       <div className="history-logo">{team?.logoUrl ? <img src={team.logoUrl} alt="" /> : team?.name?.slice(0, 2)}</div>
-      <strong>{team?.name ?? "Unknown"}</strong>
+      <div className="history-team-name">
+        <strong>{team?.name ?? "Unknown"}</strong>
+        {isWinner ? <span>WIN</span> : null}
+      </div>
     </div>
   );
+}
+
+function isWinningScore(score: number | null | undefined, opponentScore: number | null | undefined) {
+  return typeof score === "number" && typeof opponentScore === "number" && score >= 25 && score > opponentScore;
 }

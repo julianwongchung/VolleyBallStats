@@ -36,6 +36,16 @@ export function HistoryPage() {
       .filter((match) => (activeDateFilter ? match.matchDate === activeDateFilter : true))
       .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
   }, [activeDateFilter, data, search, teamFilter]);
+  const matchGroups = useMemo(() => {
+    const groups = new Map<string, typeof matches>();
+    matches.forEach((match) => {
+      const groupMatches = groups.get(match.matchDate) ?? [];
+      groupMatches.push(match);
+      groups.set(match.matchDate, groupMatches);
+    });
+
+    return Array.from(groups, ([date, groupMatches]) => ({ date, matches: groupMatches }));
+  }, [matches]);
 
   return (
     <PageShell title="History">
@@ -77,17 +87,27 @@ export function HistoryPage() {
         {matches.length === 0 ? (
           <EmptyState title="No completed matches" body="Completed matches will appear here after they are recorded." />
         ) : null}
-        {matches.map((match) => (
-          <MatchHistoryCard
-            key={match.id}
-            isAdmin={isAdmin}
-            match={match}
-            teamA={teamById(data, match.teamAId)}
-            teamB={teamById(data, match.teamBId)}
-            onDelete={() => {
-              if (confirmAction("Delete this match history and all related statistics?")) void deleteMatch(match.id);
-            }}
-          />
+        {matchGroups.map((group) => (
+          <div className="history-date-group" key={group.date}>
+            <div className="history-date-heading">
+              <strong>{formatDate(group.date)}</strong>
+              <span>
+                {group.matches.length} match{group.matches.length === 1 ? "" : "es"}
+              </span>
+            </div>
+            {group.matches.map((match) => (
+              <MatchHistoryCard
+                key={match.id}
+                isAdmin={isAdmin}
+                match={match}
+                teamA={teamById(data, match.teamAId)}
+                teamB={teamById(data, match.teamBId)}
+                onDelete={() => {
+                  if (confirmAction("Delete this match history and all related statistics?")) void deleteMatch(match.id);
+                }}
+              />
+            ))}
+          </div>
         ))}
       </section>
     </PageShell>

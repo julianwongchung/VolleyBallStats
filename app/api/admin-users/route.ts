@@ -39,6 +39,31 @@ async function findAuthUserByEmail(adminClient: SupabaseClient, email: string) {
   return data.users.find((user) => user.email?.toLowerCase() === email) ?? null;
 }
 
+async function upsertAdminUser(adminClient: SupabaseClient, userId: string, email: string) {
+  const timestamp = new Date().toISOString();
+  const { error } = await adminClient.from("admin_users").upsert({
+    user_id: userId,
+    email,
+    updated_at: timestamp
+  });
+  if (!isMissingAdminUpdatedAtColumn(error)) return error;
+
+  const { error: fallbackError } = await adminClient.from("admin_users").upsert({
+    user_id: userId,
+    email
+  });
+  return fallbackError;
+}
+
+async function touchAdminUser(adminClient: SupabaseClient, userId: string) {
+  const { error } = await adminClient
+    .from("admin_users")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  if (isMissingAdminUpdatedAtColumn(error)) return null;
+  return error;
+}
+
 export async function POST(request: NextRequest) {
   const currentAdmin = await requireCurrentAdmin();
   if ("error" in currentAdmin) {
@@ -97,10 +122,7 @@ export async function POST(request: NextRequest) {
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 });
   }
 
-  const { error: upsertError } = await adminClient.from("admin_users").upsert({
-    user_id: authUser.id,
-    email
-  });
+  const upsertError = await upsertAdminUser(adminClient, authUser.id, email);
   if (upsertError) return NextResponse.json({ error: upsertError.message }, { status: 400 });
 
   return NextResponse.json({
@@ -136,6 +158,21 @@ export async function PATCH(request: NextRequest) {
 
   const { error } = await adminClient.auth.admin.updateUserById(userId, { password });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  const touchError = await touchAdminUser(adminClient, userId);
+  if (touchError) return NextResponse.json({ error: touchError.message }, { status: 400 });
 
   return NextResponse.json({ ok: true });
+}
+
+function isMissingAdminUpdatedAtColumn(error: { code?: string; message?: string; details?: string | null } | null) {
+  if (!error) return false;
+  const text = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return (
+    text.includes("updated_at") &&
+    (error.code === "PGRST204" ||
+      error.code === "42703" ||
+      text.includes("schema cache") ||
+      text.includes("does not exist") ||
+      text.includes("could not find"))
+  );
 }

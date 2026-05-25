@@ -28,6 +28,19 @@ export function formatDateBadge(value: string) {
   };
 }
 
+export function formatDateTime(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(value);
+  if (!match) return value;
+  const date = formatDate(`${match[1]}-${match[2]}-${match[3]}`);
+  if (!match[4] || !match[5]) return date;
+
+  const hour24 = Number(match[4]);
+  const minute = match[5];
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${date}, ${hour12}:${minute} ${period}`;
+}
+
 function isoDateParts(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return null;

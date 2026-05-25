@@ -1519,16 +1519,49 @@ label {
   font-weight: 800;
 }
 
+.score-dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .score-dialog-heading button {
   display: grid;
   place-items: center;
-  width: 36px;
+  min-width: 36px;
   height: 36px;
+  padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 9px;
   color: #ffffff;
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
+}
+
+.score-dialog-heading button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.score-dialog-heading .score-dialog-undo,
+.score-dialog-heading .score-dialog-reset {
+  grid-template-columns: auto auto;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.score-dialog-heading .score-dialog-undo {
+  color: #d8fff8;
+  border-color: rgba(20, 184, 166, 0.34);
+  background: rgba(20, 184, 166, 0.14);
+}
+
+.score-dialog-heading .score-dialog-reset {
+  color: #ffe4e2;
+  border-color: rgba(248, 113, 104, 0.34);
+  background: rgba(248, 113, 104, 0.14);
 }
 
 .score-dialog-note {
@@ -2180,6 +2213,35 @@ label {
   font-size: 12px;
 }
 
+.admin-user-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.admin-user-dates div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.admin-user-dates dt {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-user-dates dd {
+  margin: 3px 0 0;
+  color: #061a3d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .admin-user-actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -2207,7 +2269,38 @@ label {
 
 .history-list {
   display: grid;
+  gap: 18px;
+}
+
+.history-date-group {
+  display: grid;
+  gap: 10px;
+}
+
+.history-date-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #eef6ff;
+  color: #0f3761;
+}
+
+.history-date-heading strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.history-date-heading span {
+  color: #456075;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .history-card {
@@ -2251,6 +2344,28 @@ label {
   font-size: 16px;
 }
 
+.history-team-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.history-team-name span {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: #ffffff;
+  background: var(--success);
+  font-size: 10px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.history-team-right .history-team-name {
+  flex-direction: row-reverse;
+}
+
 .history-logo,
 .comparison-logo {
   display: grid;
@@ -2279,7 +2394,20 @@ label {
   display: grid;
   justify-items: center;
   gap: 4px;
-  min-width: 76px;
+  min-width: 92px;
+}
+
+.history-score-title {
+  max-width: 120px;
+  margin: 0 0 2px;
+  overflow: hidden;
+  color: #111827;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-score strong {
@@ -2324,24 +2452,6 @@ label {
 .compact-icon-button {
   width: 38px;
   height: 38px;
-}
-
-.history-remarks {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding-top: 2px;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.45;
-}
-
-.history-remarks strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
 }
 
 .comparison-panel {

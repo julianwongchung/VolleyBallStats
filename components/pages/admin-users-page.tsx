@@ -7,6 +7,7 @@ import { useApp } from "@/components/app-provider";
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
+import { formatDateTime } from "@/lib/utils";
 
 export function AdminUsersPage() {
   const { adminUsers, addAdminUser, isAdmin, removeAdminUser, resetAdminPassword, userId } = useApp();
@@ -113,6 +114,16 @@ export function AdminUsersPage() {
               <div>
                 <strong>{admin.email || "No email saved"}</strong>
                 <span>Admin access active</span>
+                <dl className="admin-user-dates">
+                  <div>
+                    <dt>Last edit</dt>
+                    <dd>{formatAdminDate(admin.updatedAt ?? admin.createdAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Created</dt>
+                    <dd>{formatAdminDate(admin.createdAt)}</dd>
+                  </div>
+                </dl>
               </div>
               <div className="admin-user-actions">
                 <label>
@@ -155,4 +166,9 @@ export function AdminUsersPage() {
       </section>
     </PageShell>
   );
+}
+
+function formatAdminDate(value?: string | null) {
+  if (!value) return "Not available";
+  return formatDateTime(value);
 }

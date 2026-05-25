@@ -59,6 +59,7 @@ type AppContextValue = SessionState & {
   deleteMatch: (id: string) => Promise<void>;
   setMatchPlayer: (matchId: string, teamId: string, playerId: string, selected: boolean) => Promise<void>;
   updateStat: (matchId: string, teamId: string, playerId: string, key: StatKey, value: number) => Promise<void>;
+  resetMatchStats: (matchId: string) => Promise<void>;
 };
 
 const STORAGE_KEY = "volleystats-demo-data-v1";
@@ -115,8 +116,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     const { data: rows, error } = await supabase
       .from("admin_users")
-      .select("user_id,email,created_at")
+      .select("user_id,email,created_at,updated_at")
       .order("created_at", { ascending: false });
+    if (error && isMissingAdminUpdatedAtColumn(error)) {
+      const { data: fallbackRows, error: fallbackError } = await supabase
+        .from("admin_users")
+        .select("user_id,email,created_at")
+        .order("created_at", { ascending: false });
+      if (fallbackError) throw new Error(fallbackError.message);
+      setAdminUsers((fallbackRows ?? []).map(mapAdminUser));
+      return;
+    }
     if (error) throw new Error(error.message);
     setAdminUsers((rows ?? []).map(mapAdminUser));
   }, [supabase]);
@@ -163,7 +173,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         if (supabase) {
           const isAdmin = await refreshAdmin();
-          if (isAdmin) await refreshAdminUsers();
+          if (isAdmin) {
+            try {
+              await refreshAdminUsers();
+            } catch (error) {
+              console.warn("Admin users could not be loaded, but volleyball data will still load.", error);
+            }
+          }
           await loadSupabaseData();
         } else if (typeof window !== "undefined") {
           const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -189,7 +205,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!email || !password) throw new Error("Email and password are required.");
       if (!supabase) {
         setSession({ isConfigured: false, isAdmin: true, isLoading: false, userId: "demo-admin", userEmail: email });
-        setAdminUsers([{ userId: "demo-admin", email, createdAt: new Date().toISOString() }]);
+        const now = new Date().toISOString();
+        setAdminUsers([{ userId: "demo-admin", email, createdAt: now, updatedAt: now }]);
         return;
       }
 
@@ -206,8 +223,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const loginAsDemoAdmin = useCallback(() => {
+    const now = new Date().toISOString();
     setSession({ isConfigured: false, isAdmin: true, isLoading: false, userId: "demo-admin", userEmail: "demo@local" });
-    setAdminUsers([{ userId: "demo-admin", email: "demo@local", createdAt: new Date().toISOString() }]);
+    setAdminUsers([{ userId: "demo-admin", email: "demo@local", createdAt: now, updatedAt: now }]);
   }, []);
 
   const logout = useCallback(async () => {
@@ -237,10 +255,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       setAdminUsers((current) => {
+        const now = new Date().toISOString();
         const nextUser: AdminUser = {
           userId: uid("admin"),
           email: normalizedEmail,
-          createdAt: new Date().toISOString()
+          createdAt: now,
+          updatedAt: now
         };
         return [nextUser, ...current.filter((user) => user.email !== normalizedEmail)];
       });
@@ -263,9 +283,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (!response.ok) {
           throw new Error(payload?.error ?? "Unable to reset password.");
         }
+        await refreshAdminUsers();
+        return;
       }
+
+      setAdminUsers((current) =>
+        current.map((user) => (user.userId === userId ? { ...user, updatedAt: new Date().toISOString() } : user))
+      );
     },
-    [supabase]
+    [refreshAdminUsers, supabase]
   );
 
   const removeAdminUser = useCallback(
@@ -733,6 +759,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [data, loadSupabaseData, saveLocal, supabase]
   );
 
+  const resetMatchStats = useCallback(
+    async (matchId: string) => {
+      const timestamp = new Date().toISOString();
+
+      if (supabase) {
+        const { error: statsError } = await supabase
+          .from("match_stats")
+          .update({
+            attack: 0,
+            block: 0,
+            ace: 0,
+            dig: 0,
+            attack_error: 0,
+            serve_error: 0,
+            receive_error: 0,
+            updated_at: timestamp
+          })
+          .eq("match_id", matchId);
+        if (statsError) throw new Error(statsError.message);
+
+        const { error: matchError } = await supabase
+          .from("matches")
+          .update({ team_a_score: 0, team_b_score: 0, updated_at: timestamp })
+          .eq("id", matchId);
+        if (matchError) throw new Error(matchError.message);
+
+        await loadSupabaseData();
+        return;
+      }
+
+      saveLocal({
+        ...data,
+        matches: data.matches.map((match) =>
+          match.id === matchId ? { ...match, teamAScore: 0, teamBScore: 0, updatedAt: timestamp } : match
+        ),
+        matchStats: data.matchStats.map((stat) =>
+          stat.matchId === matchId
+            ? {
+                ...stat,
+                attack: 0,
+                block: 0,
+                ace: 0,
+                dig: 0,
+                attackError: 0,
+                serveError: 0,
+                receiveError: 0,
+                updatedAt: timestamp
+              }
+            : stat
+        )
+      });
+    },
+    [data, loadSupabaseData, saveLocal, supabase]
+  );
+
   const setMatchPlayer = useCallback(
     async (matchId: string, teamId: string, playerId: string, selected: boolean) => {
       const match = data.matches.find((item) => item.id === matchId);
@@ -820,7 +901,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updateMatch,
       deleteMatch,
       setMatchPlayer,
-      updateStat
+      updateStat,
+      resetMatchStats
     }),
     [
       archivePlayer,
@@ -841,6 +923,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       refreshAdminUsers,
       removeAdminUser,
       resetAdminPassword,
+      resetMatchStats,
       setMatchPlayer,
       session,
       updateMatch,
@@ -952,8 +1035,21 @@ function mapAdminUser(row: Record<string, any>): AdminUser {
   return {
     userId: row.user_id,
     email: row.email,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at
   };
+}
+
+function isMissingAdminUpdatedAtColumn(error: { code?: string; message?: string; details?: string | null }) {
+  const text = `${error.message ?? ""} ${error.details ?? ""}`.toLowerCase();
+  return (
+    text.includes("updated_at") &&
+    (error.code === "PGRST204" ||
+      error.code === "42703" ||
+      text.includes("schema cache") ||
+      text.includes("does not exist") ||
+      text.includes("could not find"))
+  );
 }
 
 function mapMatch(row: Record<string, any>): Match {

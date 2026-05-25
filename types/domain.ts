@@ -110,6 +110,7 @@ export type AdminUser = {
   userId: string;
   email: string | null;
   createdAt: string;
+  updatedAt?: string | null;
 };
 
 export type TeamInput = {

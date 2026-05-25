@@ -8,8 +8,11 @@ create schema if not exists private;
 create table if not exists public.admin_users (
   user_id uuid primary key references auth.users(id) on delete cascade,
   email text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+alter table public.admin_users add column if not exists updated_at timestamptz not null default now();
 
 create or replace function private.is_admin()
 returns boolean

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ClipboardList, Edit3, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ClipboardList, Edit3, Plus, RotateCcw, Trash2, Undo2, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -49,7 +49,7 @@ const courtPositions: CourtPosition[] = ["4", "3", "2", "5", "6", "1"];
 const rotationOrder: CourtPosition[] = ["1", "6", "5", "4", "3", "2"];
 
 export function MatchesPage() {
-  const { data, isAdmin, createMatch, updateMatch, deleteMatch, setMatchPlayer, updateStat } = useApp();
+  const { data, isAdmin, createMatch, updateMatch, deleteMatch, resetMatchStats, setMatchPlayer, updateStat } = useApp();
   const [editing, setEditing] = useState<Match | null>(null);
   const [form, setForm] = useState<MatchInput>(blankMatch);
   const [selectedMatchId, setSelectedMatchId] = useState(data.matches[0]?.id ?? "");
@@ -269,6 +269,52 @@ export function MatchesPage() {
     setDraggedCourtPlayerId("");
   }
 
+  async function resetSelectedMatch() {
+    if (!selectedMatch) return;
+    const confirmed = confirmAction("Reset all player stats, score details, live score, and court rotation for this match?");
+    if (!confirmed) return;
+
+    await resetMatchStats(selectedMatch.id);
+    setScoreEvents((current) => current.filter((event) => event.matchId !== selectedMatch.id));
+    setServingTeamIds((current) => {
+      const next = { ...current };
+      delete next[selectedMatch.id];
+      return next;
+    });
+    setCourtLineups((current) => {
+      const next = { ...current };
+      delete next[courtLineupKey(selectedMatch.id, selectedMatch.teamAId)];
+      delete next[courtLineupKey(selectedMatch.id, selectedMatch.teamBId)];
+      return next;
+    });
+    setSelectedCourtPlayerId("");
+    setDraggedCourtPlayerId("");
+  }
+
+  async function undoLastScoreAction() {
+    if (!selectedMatch) return;
+    const lastEvent = [...scoreEvents].reverse().find((event) => event.matchId === selectedMatch.id);
+    if (!lastEvent) return;
+
+    const existing = statFor(data, lastEvent.matchId, lastEvent.teamId, lastEvent.playerId);
+    const currentValue = existing?.[lastEvent.statKey] ?? 0;
+    const nextValue = Math.max(0, currentValue - lastEvent.delta);
+
+    await updateStat(lastEvent.matchId, lastEvent.teamId, lastEvent.playerId, lastEvent.statKey, nextValue);
+
+    if (lastEvent.rotatedTeamId) {
+      reverseRotateCourtLineup(lastEvent.matchId, lastEvent.rotatedTeamId);
+    }
+    if (lastEvent.previousServingTeamId) {
+      setServingTeamIds((current) => ({ ...current, [lastEvent.matchId]: lastEvent.previousServingTeamId! }));
+    }
+    setScoreEvents((current) => {
+      const targetIndex = current.findLastIndex((event) => event.id === lastEvent.id);
+      if (targetIndex < 0) return current;
+      return current.filter((_, index) => index !== targetIndex);
+    });
+  }
+
   function rotateForPoint(match: Match, scoringTeamId: string) {
     const previousServingTeamId = servingTeamIds[match.id] ?? match.teamAId;
     if (previousServingTeamId === scoringTeamId) {
@@ -294,6 +340,23 @@ export function MatchesPage() {
       return { ...current, [lineupKey]: nextLineup };
     });
   }
+
+  function reverseRotateCourtLineup(matchId: string, teamId: string) {
+    const lineupKey = courtLineupKey(matchId, teamId);
+    setCourtLineups((current) => {
+      const lineup = current[lineupKey];
+      if (!lineup) return current;
+
+      const nextLineup: CourtLineup = {};
+      rotationOrder.forEach((position, index) => {
+        const previousPosition = rotationOrder[(index - 1 + rotationOrder.length) % rotationOrder.length];
+        if (lineup[position]) nextLineup[previousPosition] = lineup[position];
+      });
+      return { ...current, [lineupKey]: nextLineup };
+    });
+  }
+
+  const selectedMatchEvents = selectedMatch ? scoreEvents.filter((event) => event.matchId === selectedMatch.id) : [];
 
   return (
     <PageShell title="Match">
@@ -690,9 +753,11 @@ export function MatchesPage() {
       {scoreDetailsOpen && selectedMatch ? (
         <ScoreDetailsDialog
           data={data}
-          events={scoreEvents.filter((event) => event.matchId === selectedMatch.id)}
+          events={selectedMatchEvents}
           match={selectedMatch}
           onClose={() => setScoreDetailsOpen(false)}
+          onReset={() => void resetSelectedMatch()}
+          onUndo={() => void undoLastScoreAction()}
         />
       ) : null}
     </PageShell>
@@ -727,12 +792,16 @@ function ScoreDetailsDialog({
   data,
   events,
   match,
-  onClose
+  onClose,
+  onReset,
+  onUndo
 }: {
   data: ReturnType<typeof useApp>["data"];
   events: ScoreEvent[];
   match: Match;
   onClose: () => void;
+  onReset: () => void;
+  onUndo: () => void;
 }) {
   const teamA = teamById(data, match.teamAId);
   const teamB = teamById(data, match.teamBId);
@@ -755,14 +824,24 @@ function ScoreDetailsDialog({
             </strong>
             <span>Point Calculation</span>
           </div>
-          <button type="button" onClick={onClose} title="Close">
-            <X size={18} />
-          </button>
+          <div className="score-dialog-actions">
+            <button disabled={events.length === 0} type="button" className="score-dialog-undo" onClick={onUndo} title="Undo last action">
+              <Undo2 size={17} />
+              <span>Undo</span>
+            </button>
+            <button type="button" className="score-dialog-reset" onClick={onReset} title="Reset match stats">
+              <RotateCcw size={17} />
+              <span>Reset</span>
+            </button>
+            <button type="button" onClick={onClose} title="Close">
+              <X size={18} />
+            </button>
+          </div>
         </div>
         <p className="score-dialog-note">
           {events.length > 0
-            ? "ATK, BLK, ACE give own team +1. AE, SE, RE give opponent +1. Each row is one tap only."
-            : "ATK, BLK, ACE give own team +1. AE, SE, RE give opponent +1."}
+            ? "ATK, BLK, ACE score for the player's team. AE, SE, RE score for the opponent. Each row is one tap only."
+            : "ATK, BLK, ACE score for the player's team. AE, SE, RE score for the opponent."}
         </p>
         {rows.length === 0 ? (
           <EmptyState title="No points recorded" body="Record player stats to build the score details." />
@@ -805,8 +884,8 @@ function liveScoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Mat
       title: `${label.code} - ${label.title}`,
       description:
         event.delta > 0
-          ? `Point ${index + 1}: ${label.rule} +1 to ${teamName}`
-          : `Point ${index + 1}: ${label.rule} -1 from ${teamName}`,
+          ? `Point ${index + 1}: ${label.pointReason} to ${teamName}`
+          : `Point ${index + 1}: correction removes point from ${teamName}`,
       scoreAfter: `${teamAScore}-${teamBScore}`,
       side: event.scoringTeamId === match.teamAId ? "team-a" : "team-b"
     };
@@ -819,19 +898,19 @@ function scoreEventLabel(data: ReturnType<typeof useApp>["data"], event: ScoreEv
 
   switch (event.statKey) {
     case "attack":
-      return { code: "ATK", title: `${playerName} attack score`, rule: "own team" };
+      return { code: "ATK", title: `${playerName} attack score`, pointReason: "attack point" };
     case "block":
-      return { code: "BLK", title: `${playerName} block score`, rule: "own team" };
+      return { code: "BLK", title: `${playerName} block score`, pointReason: "block point" };
     case "ace":
-      return { code: "ACE", title: `${playerName} ace score`, rule: "own team" };
+      return { code: "ACE", title: `${playerName} ace score`, pointReason: "ace point" };
     case "attackError":
-      return { code: "AE", title: `${playerName} attack error`, rule: "opponent" };
+      return { code: "AE", title: `${playerName} attack error`, pointReason: "opponent attack error point" };
     case "serveError":
-      return { code: "SE", title: `${playerName} serve error`, rule: "opponent" };
+      return { code: "SE", title: `${playerName} serve error`, pointReason: "opponent serve error point" };
     case "receiveError":
-      return { code: "RE", title: `${playerName} receive error`, rule: "opponent" };
+      return { code: "RE", title: `${playerName} receive error`, pointReason: "opponent receive error point" };
     case "dig":
-      return { code: "DIG", title: `${playerName} dig`, rule: "no score" };
+      return { code: "DIG", title: `${playerName} dig`, pointReason: "no score" };
   }
 }
 
@@ -851,14 +930,14 @@ function scoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Match) 
       const opponentName = stat.teamId === match.teamAId ? teamBName : teamAName;
 
       return [
-        ...scoreRows(stat.attack, "ATK", `${playerName} attack score`, "own team", teamName, stat.teamId),
-        ...scoreRows(stat.block, "BLK", `${playerName} block score`, "own team", teamName, stat.teamId),
-        ...scoreRows(stat.ace, "ACE", `${playerName} ace score`, "own team", teamName, stat.teamId),
+        ...scoreRows(stat.attack, "ATK", `${playerName} attack score`, "attack point", teamName, stat.teamId),
+        ...scoreRows(stat.block, "BLK", `${playerName} block score`, "block point", teamName, stat.teamId),
+        ...scoreRows(stat.ace, "ACE", `${playerName} ace score`, "ace point", teamName, stat.teamId),
         ...scoreRows(
           stat.attackError,
           "AE",
           `${playerName} attack error`,
-          "opponent",
+          "opponent attack error point",
           opponentName,
           oppositeTeamId(match, stat.teamId)
         ),
@@ -866,7 +945,7 @@ function scoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Match) 
           stat.serveError,
           "SE",
           `${playerName} serve error`,
-          "opponent",
+          "opponent serve error point",
           opponentName,
           oppositeTeamId(match, stat.teamId)
         ),
@@ -874,7 +953,7 @@ function scoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Match) 
           stat.receiveError,
           "RE",
           `${playerName} receive error`,
-          "opponent",
+          "opponent receive error point",
           opponentName,
           oppositeTeamId(match, stat.teamId)
         )
@@ -885,7 +964,7 @@ function scoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Match) 
     count: number,
     code: string,
     title: string,
-    rule: "own team" | "opponent",
+    pointReason: string,
     scoringTeamName: string,
     scoringTeamId: string | null
   ) {
@@ -897,7 +976,7 @@ function scoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Match) 
       return {
         id: `${sequence}-${title}`,
         title: `${code} - ${title}`,
-        description: `${rule} +1 to ${scoringTeamName}`,
+        description: `${pointReason} to ${scoringTeamName}`,
         scoreAfter: `${teamAScore}-${teamBScore}`,
         side: scoringTeamId === match.teamAId ? "team-a" : "team-b"
       };
