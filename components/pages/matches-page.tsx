@@ -101,6 +101,11 @@ export function MatchesPage() {
   const courtAssignedPlayerIds = new Set(Object.values(activeCourtLineup).filter(Boolean));
   const courtBenchPlayers = playingPlayers.filter((player) => !courtAssignedPlayerIds.has(player.id));
   const courtActionPlayer = playingPlayers.find((player) => player.id === courtActionPlayerId);
+  const activeTeamIsServing = activeTeamId === servingTeamId;
+  const activeServerPlayer = activeTeamIsServing
+    ? playingPlayers.find((player) => player.id === activeCourtLineup["1"])
+    : undefined;
+  const servingTeamName = selectedMatch ? displayTeam(teamById(data, servingTeamId)) : "";
   const matchGroups = useMemo(() => {
     const groups = new Map<string, Match[]>();
     data.matches.forEach((match) => {
@@ -612,13 +617,17 @@ export function MatchesPage() {
               ))}
             </div>
             <div className="serving-team-control" aria-label="Serving team">
-              <strong>Serving</strong>
+              <strong>First / current serve</strong>
               {[selectedMatch.teamAId, selectedMatch.teamBId].map((teamId) => (
                 <button
                   className={teamId === servingTeamId ? "active" : ""}
                   key={teamId}
                   type="button"
-                  onClick={() => setServingTeamIds((current) => ({ ...current, [selectedMatch.id]: teamId }))}
+                  onClick={() => {
+                    setServingTeamIds((current) => ({ ...current, [selectedMatch.id]: teamId }));
+                    setSelectedTeamId(teamId);
+                    setCourtActionPlayerId("");
+                  }}
                 >
                   {displayTeam(teamById(data, teamId))}
                 </button>
@@ -661,10 +670,20 @@ export function MatchesPage() {
               <div className="court-lineup-heading">
                 <div>
                   <h3>Court Positions</h3>
-                  <p>{displayTeam(teamById(data, activeTeamId))}</p>
+                  <p>
+                    {displayTeam(teamById(data, activeTeamId))}
+                    {activeTeamIsServing ? " serving" : ` watching ${servingTeamName} serve`}
+                  </p>
                 </div>
                 <span>{courtAssignedPlayerIds.size}/6</span>
               </div>
+              <p className={`court-serving-note ${activeTeamIsServing ? "active" : ""}`}>
+                {activeTeamIsServing
+                  ? activeServerPlayer
+                    ? `${activeServerPlayer.name} is serving from position 1.`
+                    : "Position 1 is the current server spot."
+                  : `${servingTeamName} is currently serving.`}
+              </p>
               <p className="court-rotation-note">
                 Tap an on-court player to record ATK, ACE, SE, BLK, AE, or RE. Drag or select players below to fill the six positions.
               </p>
@@ -675,11 +694,12 @@ export function MatchesPage() {
                 {courtPositions.map((position) => {
                   const playerId = activeCourtLineup[position];
                   const player = playingPlayers.find((item) => item.id === playerId);
+                  const isServerPosition = activeTeamIsServing && position === "1";
 
                   return (
                     <button
-                      aria-label={`Position ${position}`}
-                      className={`court-position court-position-${position} ${player ? "filled" : ""}`}
+                      aria-label={`Position ${position}${isServerPosition ? ", current server" : ""}`}
+                      className={`court-position court-position-${position} ${player ? "filled" : ""} ${isServerPosition ? "current-server" : ""}`}
                       key={position}
                       type="button"
                       onClick={() => {
@@ -707,9 +727,10 @@ export function MatchesPage() {
                         >
                           {player.name}
                           <small>#{player.jerseyNumber} {player.position}</small>
+                          {isServerPosition ? <mark className="server-badge">Serving</mark> : null}
                         </span>
                       ) : (
-                        <em>{selectedCourtPlayerId ? "Tap to place" : "Add player"}</em>
+                        <em>{isServerPosition ? "Server spot" : selectedCourtPlayerId ? "Tap to place" : "Add player"}</em>
                       )}
                     </button>
                   );
