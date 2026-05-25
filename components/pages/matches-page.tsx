@@ -38,7 +38,15 @@ type ScoreEvent = {
   statKey: StatKey;
   scoringTeamId: string;
   delta: 1 | -1;
+  previousServingTeamId?: string;
+  rotatedTeamId?: string;
 };
+
+type CourtPosition = "1" | "2" | "3" | "4" | "5" | "6";
+type CourtLineup = Partial<Record<CourtPosition, string>>;
+
+const courtPositions: CourtPosition[] = ["4", "3", "2", "5", "6", "1"];
+const rotationOrder: CourtPosition[] = ["1", "6", "5", "4", "3", "2"];
 
 export function MatchesPage() {
   const { data, isAdmin, createMatch, updateMatch, deleteMatch, setMatchPlayer, updateStat } = useApp();
@@ -52,6 +60,10 @@ export function MatchesPage() {
   const [scoreDetailsOpen, setScoreDetailsOpen] = useState(false);
   const [scoreEvents, setScoreEvents] = useState<ScoreEvent[]>([]);
   const [pendingStatKeys, setPendingStatKeys] = useState<Set<string>>(() => new Set());
+  const [courtLineups, setCourtLineups] = useState<Record<string, CourtLineup>>({});
+  const [servingTeamIds, setServingTeamIds] = useState<Record<string, string>>({});
+  const [draggedCourtPlayerId, setDraggedCourtPlayerId] = useState("");
+  const [selectedCourtPlayerId, setSelectedCourtPlayerId] = useState("");
   const [error, setError] = useState("");
 
   const selectedMatch = useMemo(
@@ -61,6 +73,7 @@ export function MatchesPage() {
   const isRecordingStats = Boolean(recordingMatchId && selectedMatch?.id === recordingMatchId);
   const selectedMatchScore = selectedMatch ? calculatedMatchScore(data, selectedMatch) : { teamA: 0, teamB: 0 };
   const selectedMatchTeamIds = selectedMatch ? [selectedMatch.teamAId, selectedMatch.teamBId] : [];
+  const servingTeamId = selectedMatch ? servingTeamIds[selectedMatch.id] ?? selectedMatch.teamAId : "";
   const activeTeamId = selectedMatchTeamIds.includes(selectedTeamId) ? selectedTeamId : selectedMatch?.teamAId || "";
   const activePlayers = activeTeamId ? playersForTeam(data, activeTeamId).filter((player) => !player.archived) : [];
   const selectedPlayerIds = useMemo(() => {
@@ -72,6 +85,10 @@ export function MatchesPage() {
     );
   }, [activeTeamId, data.matchStats, selectedMatch]);
   const playingPlayers = activePlayers.filter((player) => selectedPlayerIds.has(player.id));
+  const activeCourtLineupKey = selectedMatch && activeTeamId ? courtLineupKey(selectedMatch.id, activeTeamId) : "";
+  const activeCourtLineup = activeCourtLineupKey ? courtLineups[activeCourtLineupKey] ?? {} : {};
+  const courtAssignedPlayerIds = new Set(Object.values(activeCourtLineup).filter(Boolean));
+  const courtBenchPlayers = playingPlayers.filter((player) => !courtAssignedPlayerIds.has(player.id));
   const matchGroups = useMemo(() => {
     const groups = new Map<string, Match[]>();
     data.matches.forEach((match) => {
@@ -147,6 +164,9 @@ export function MatchesPage() {
       if (!confirmed) return;
     }
     await setMatchPlayer(selectedMatch.id, activeTeamId, playerId, selected);
+    if (!selected) {
+      removeCourtPlayer(playerId);
+    }
   }
 
   async function changePlayerStat(playerId: string, statKey: StatKey, nextValue: number) {
@@ -168,6 +188,7 @@ export function MatchesPage() {
 
     try {
       await updateStat(selectedMatch.id, activeTeamId, playerId, statKey, Math.max(0, currentValue + direction));
+      const rotation = direction > 0 ? rotateForPoint(selectedMatch, scoringTeamId) : null;
 
       setScoreEvents((current) => [
         ...current,
@@ -178,7 +199,9 @@ export function MatchesPage() {
           playerId,
           statKey,
           scoringTeamId,
-          delta: direction
+          delta: direction,
+          previousServingTeamId: rotation?.previousServingTeamId,
+          rotatedTeamId: rotation?.rotatedTeamId ?? undefined
         }
       ]);
     } finally {
@@ -203,6 +226,73 @@ export function MatchesPage() {
     setSelectedTeamId(match.teamAId);
     setPlayersCollapsed(true);
     setRecordingMatchId(match.id);
+  }
+
+  function assignCourtPlayer(position: CourtPosition, playerId: string) {
+    if (!activeCourtLineupKey || !playerId) return;
+
+    setCourtLineups((current) => {
+      const nextLineup: CourtLineup = { ...(current[activeCourtLineupKey] ?? {}) };
+      courtPositions.forEach((item) => {
+        if (nextLineup[item] === playerId) delete nextLineup[item];
+      });
+      nextLineup[position] = playerId;
+      return { ...current, [activeCourtLineupKey]: nextLineup };
+    });
+    setSelectedCourtPlayerId("");
+  }
+
+  function removeCourtPlayer(playerId: string) {
+    if (!activeCourtLineupKey || !playerId) return;
+
+    setCourtLineups((current) => {
+      const nextLineup: CourtLineup = { ...(current[activeCourtLineupKey] ?? {}) };
+      courtPositions.forEach((position) => {
+        if (nextLineup[position] === playerId) delete nextLineup[position];
+      });
+      return { ...current, [activeCourtLineupKey]: nextLineup };
+    });
+    setSelectedCourtPlayerId((current) => (current === playerId ? "" : current));
+  }
+
+  function onCourtDrop(event: React.DragEvent, position: CourtPosition) {
+    event.preventDefault();
+    const playerId = event.dataTransfer.getData("text/plain") || draggedCourtPlayerId;
+    assignCourtPlayer(position, playerId);
+    setDraggedCourtPlayerId("");
+  }
+
+  function onCourtBenchDrop(event: React.DragEvent) {
+    event.preventDefault();
+    const playerId = event.dataTransfer.getData("text/plain") || draggedCourtPlayerId;
+    removeCourtPlayer(playerId);
+    setDraggedCourtPlayerId("");
+  }
+
+  function rotateForPoint(match: Match, scoringTeamId: string) {
+    const previousServingTeamId = servingTeamIds[match.id] ?? match.teamAId;
+    if (previousServingTeamId === scoringTeamId) {
+      return { previousServingTeamId, rotatedTeamId: undefined };
+    }
+
+    rotateCourtLineup(match.id, scoringTeamId);
+    setServingTeamIds((current) => ({ ...current, [match.id]: scoringTeamId }));
+    return { previousServingTeamId, rotatedTeamId: scoringTeamId };
+  }
+
+  function rotateCourtLineup(matchId: string, teamId: string) {
+    const lineupKey = courtLineupKey(matchId, teamId);
+    setCourtLineups((current) => {
+      const lineup = current[lineupKey];
+      if (!lineup) return current;
+
+      const nextLineup: CourtLineup = {};
+      rotationOrder.forEach((position, index) => {
+        const nextPosition = rotationOrder[(index + 1) % rotationOrder.length];
+        if (lineup[position]) nextLineup[nextPosition] = lineup[position];
+      });
+      return { ...current, [lineupKey]: nextLineup };
+    });
   }
 
   return (
@@ -435,6 +525,19 @@ export function MatchesPage() {
                 </button>
               ))}
             </div>
+            <div className="serving-team-control" aria-label="Serving team">
+              <strong>Serving</strong>
+              {[selectedMatch.teamAId, selectedMatch.teamBId].map((teamId) => (
+                <button
+                  className={teamId === servingTeamId ? "active" : ""}
+                  key={teamId}
+                  type="button"
+                  onClick={() => setServingTeamIds((current) => ({ ...current, [selectedMatch.id]: teamId }))}
+                >
+                  {displayTeam(teamById(data, teamId))}
+                </button>
+              ))}
+            </div>
             <section className="match-player-picker">
               <button
                 aria-expanded={!playersCollapsed}
@@ -497,6 +600,87 @@ export function MatchesPage() {
                 );
               })}
             </div>
+            <section className="court-lineup-card" aria-label="Court positions">
+              <div className="court-lineup-heading">
+                <div>
+                  <h3>Court Positions</h3>
+                  <p>{displayTeam(teamById(data, activeTeamId))}</p>
+                </div>
+                <span>{courtAssignedPlayerIds.size}/6</span>
+              </div>
+              <p className="court-rotation-note">
+                Rotates only when this team wins the serve from the opponent.
+              </p>
+              <div className="court-board">
+                {courtPositions.map((position) => {
+                  const playerId = activeCourtLineup[position];
+                  const player = playingPlayers.find((item) => item.id === playerId);
+
+                  return (
+                    <button
+                      aria-label={`Position ${position}`}
+                      className={`court-position court-position-${position} ${player ? "filled" : ""}`}
+                      key={position}
+                      type="button"
+                      onClick={() => {
+                        if (selectedCourtPlayerId) assignCourtPlayer(position, selectedCourtPlayerId);
+                      }}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => onCourtDrop(event, position)}
+                    >
+                      <b>{position}</b>
+                      {player ? (
+                        <span
+                          draggable
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedCourtPlayerId(player.id);
+                          }}
+                          onDragStart={(event) => {
+                            setDraggedCourtPlayerId(player.id);
+                            event.dataTransfer.setData("text/plain", player.id);
+                          }}
+                        >
+                          {player.name}
+                          <small>#{player.jerseyNumber} {player.position}</small>
+                        </span>
+                      ) : (
+                        <em>{selectedCourtPlayerId ? "Tap to place" : "Drop player"}</em>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div
+                className="court-player-bench"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={onCourtBenchDrop}
+              >
+                <strong>Available Players</strong>
+                {courtBenchPlayers.length === 0 ? (
+                  <p>{playingPlayers.length === 0 ? "Select players above first." : "All selected players are on court."}</p>
+                ) : (
+                  <div>
+                    {courtBenchPlayers.map((player) => (
+                      <button
+                        className={selectedCourtPlayerId === player.id ? "active" : ""}
+                        draggable
+                        key={player.id}
+                        type="button"
+                        onClick={() => setSelectedCourtPlayerId((current) => (current === player.id ? "" : player.id))}
+                        onDragStart={(event) => {
+                          setDraggedCourtPlayerId(player.id);
+                          event.dataTransfer.setData("text/plain", player.id);
+                        }}
+                      >
+                        {player.name}
+                        <small>#{player.jerseyNumber} {player.position}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
           </>
         ) : (
           <EmptyState title="No match selected" body="Create or select a match to start entering stats." />
@@ -723,6 +907,10 @@ function scoreDetailRows(data: ReturnType<typeof useApp>["data"], match: Match) 
 
 function statUpdateKey(matchId: string, teamId: string, playerId: string, statKey: StatKey) {
   return `${matchId}:${teamId}:${playerId}:${statKey}`;
+}
+
+function courtLineupKey(matchId: string, teamId: string) {
+  return `${matchId}:${teamId}`;
 }
 
 function scoringTeamForStat(match: Match, teamId: string, statKey: StatKey) {
