@@ -2039,6 +2039,14 @@ label {
   box-shadow: 0 2px 5px rgba(16, 24, 40, 0.12);
 }
 
+.court-position.filled {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.court-position.filled span {
+  cursor: pointer;
+}
+
 .court-position small {
   color: #6d7483;
   font-size: 9px;
@@ -2103,6 +2111,117 @@ label {
   font-size: 10px;
   font-weight: 850;
   text-transform: uppercase;
+}
+
+.court-action-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 15, 25, 0.5);
+}
+
+.court-action-dialog {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 420px);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.26);
+}
+
+.court-action-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.court-action-heading div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.court-action-heading span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.court-action-heading strong {
+  color: #061a3d;
+  font-size: 22px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.court-action-heading small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.court-action-heading button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #1f2733;
+  background: #f7f9fa;
+  cursor: pointer;
+}
+
+.court-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.court-action-grid button {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 72px;
+  padding: 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.court-action-grid button b {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.court-action-grid button span {
+  color: #5f6878;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.court-action-grid button.own-point {
+  border-color: #9fd3ce;
+  color: #087f7b;
+  background: #eaf8f7;
+}
+
+.court-action-grid button.opponent-point {
+  border-color: #ffc6c0;
+  color: #d64545;
+  background: #fff1f0;
 }
 
 .filter-panel {
