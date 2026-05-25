@@ -8,12 +8,20 @@ import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
 import { displayTeam, teamById } from "@/lib/data/selectors";
+import { formatDate } from "@/lib/utils";
 
 export function HistoryPage() {
   const { data, isAdmin, deleteMatch } = useApp();
   const [search, setSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+
+  const completedDates = useMemo(() => {
+    return Array.from(
+      new Set(data.matches.filter((match) => match.status === "completed").map((match) => match.matchDate))
+    ).sort((a, b) => b.localeCompare(a));
+  }, [data.matches]);
+  const activeDateFilter = completedDates.includes(dateFilter) ? dateFilter : "";
 
   const matches = useMemo(() => {
     return data.matches
@@ -25,9 +33,9 @@ export function HistoryPage() {
         return haystack.includes(search.toLowerCase());
       })
       .filter((match) => (teamFilter === "all" ? true : match.teamAId === teamFilter || match.teamBId === teamFilter))
-      .filter((match) => (dateFilter ? match.matchDate === dateFilter : true))
+      .filter((match) => (activeDateFilter ? match.matchDate === activeDateFilter : true))
       .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
-  }, [data, dateFilter, search, teamFilter]);
+  }, [activeDateFilter, data, search, teamFilter]);
 
   return (
     <PageShell title="History">
@@ -42,7 +50,14 @@ export function HistoryPage() {
           </label>
           <label>
             Date
-            <input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} />
+            <select value={activeDateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+              <option value="">All completed dates</option>
+              {completedDates.map((date) => (
+                <option key={date} value={date}>
+                  {formatDate(date)}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Team
