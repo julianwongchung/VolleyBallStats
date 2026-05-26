@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Archive, Edit3, Plus, Trash2, Upload } from "lucide-react";
+import { Archive, Edit3, Plus, Trash2, Upload, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -32,6 +32,7 @@ const blankPlayer = {
 export function TeamPlayersPage({ teamId }: { teamId: string }) {
   const { data, isAdmin, createPlayer, updatePlayer, archivePlayer, deletePlayer } = useApp();
   const [editing, setEditing] = useState<Player | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({ ...blankPlayer, teamIds: [teamId] });
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -39,9 +40,14 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
 
   const players = useMemo(() => {
     return playersForTeam(data, teamId)
-      .filter((player) => !player.archived)
-      .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
-  }, [data, teamId]);
+      .filter((player) => isAdmin || !player.archived)
+      .sort(
+        (a, b) =>
+          Number(a.archived) - Number(b.archived) ||
+          a.jerseyNumber - b.jerseyNumber ||
+          a.name.localeCompare(b.name)
+      );
+  }, [data, isAdmin, teamId]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -54,6 +60,7 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
         await createPlayer(input, photo);
       }
       setEditing(null);
+      setFormOpen(false);
       setForm({ ...blankPlayer, teamIds: [teamId] });
       setPhoto(null);
     } catch (err) {
@@ -71,13 +78,24 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
       teamIds: data.playerTeams.filter((link) => link.playerId === player.id).map((link) => link.teamId)
     });
     setPhoto(null);
+    setError("");
+    setFormOpen(true);
   }
 
   function cancelEdit() {
     setEditing(null);
+    setFormOpen(false);
     setForm({ ...blankPlayer, teamIds: [teamId] });
     setPhoto(null);
     setError("");
+  }
+
+  function startCreate() {
+    setEditing(null);
+    setForm({ ...blankPlayer, teamIds: [teamId] });
+    setPhoto(null);
+    setError("");
+    setFormOpen(true);
   }
 
   if (!team) {
@@ -92,71 +110,87 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
     <PageShell
       title={`${team.name} Players`}
       action={
-        <Link className="secondary-button" href={isAdmin ? "/players" : "/teams"}>
-          Teams
-        </Link>
+        <>
+          {isAdmin ? (
+            <button className="primary-button" type="button" onClick={startCreate}>
+              <Plus size={17} />
+              Add Player
+            </button>
+          ) : null}
+          <Link className="secondary-button" href={isAdmin ? "/players" : "/teams"}>
+            Teams
+          </Link>
+        </>
       }
     >
-      {isAdmin ? (
-        <form className="form-panel" onSubmit={(event) => void submit(event)}>
-          <div className="form-title">
-            <h2>{editing ? "Edit Player" : `Add ${team.name} Player`}</h2>
-            {editing ? (
-              <button type="button" className="text-button" onClick={cancelEdit}>
-                Cancel
+      {isAdmin && formOpen ? (
+        <div className="modal-backdrop" onClick={cancelEdit}>
+          <section
+            aria-labelledby="team-player-form-title"
+            aria-modal="true"
+            className="modal-window"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="modal-header">
+              <h2 id="team-player-form-title">{editing ? "Edit Player" : `Add ${team.name} Player`}</h2>
+              <button aria-label="Close player form" className="icon-button" onClick={cancelEdit} type="button">
+                <X size={18} />
               </button>
-            ) : null}
-          </div>
-          {error ? <p className="form-error">{error}</p> : null}
-          <div className="form-grid">
-            <label>
-              Player name
-              <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-            </label>
-            <label>
-              Jersey #
-              <input
-                max={99}
-                min={0}
-                required
-                type="number"
-                value={form.jerseyNumber}
-                onChange={(event) => setForm({ ...form, jerseyNumber: Number(event.target.value) })}
-              />
-            </label>
-          </div>
-          <label>
-            Position
-            <select value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })}>
-              <option value="">Select position</option>
-              {form.position && !playerPositions.includes(form.position) ? (
-                <option value={form.position}>{form.position}</option>
-              ) : null}
-              {playerPositions.map((position) => (
-                <option key={position} value={position}>
-                  {position}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="file-input">
-            <Upload size={16} />
-            <span>{photo ? photo.name : "Upload profile photo"}</span>
-            <input accept="image/*" type="file" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={form.archived}
-              type="checkbox"
-              onChange={(event) => setForm({ ...form, archived: event.target.checked })}
-            />
-            Archived
-          </label>
-          <button className="primary-button" type="submit">
-            <Plus size={17} />
-            {editing ? "Save Player" : "Add Player"}
-          </button>
-        </form>
+            </div>
+            <form className="form-panel" onSubmit={(event) => void submit(event)}>
+              {error ? <p className="form-error">{error}</p> : null}
+              <div className="form-grid">
+                <label>
+                  Player name
+                  <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                </label>
+                <label>
+                  Jersey #
+                  <input
+                    max={99}
+                    min={0}
+                    required
+                    type="number"
+                    value={form.jerseyNumber}
+                    onChange={(event) => setForm({ ...form, jerseyNumber: Number(event.target.value) })}
+                  />
+                </label>
+              </div>
+              <label>
+                Position
+                <select value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })}>
+                  <option value="">Select position</option>
+                  {form.position && !playerPositions.includes(form.position) ? (
+                    <option value={form.position}>{form.position}</option>
+                  ) : null}
+                  {playerPositions.map((position) => (
+                    <option key={position} value={position}>
+                      {position}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="file-input">
+                <Upload size={16} />
+                <span>{photo ? photo.name : "Upload profile photo"}</span>
+                <input accept="image/*" type="file" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  checked={form.archived}
+                  type="checkbox"
+                  onChange={(event) => setForm({ ...form, archived: event.target.checked })}
+                />
+                Archived
+              </label>
+              <button className="primary-button" type="submit">
+                <Plus size={17} />
+                {editing ? "Save Player" : "Add Player"}
+              </button>
+            </form>
+          </section>
+        </div>
       ) : null}
 
       {isAdmin ? (
@@ -170,12 +204,17 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
                 <p>
                   #{player.jerseyNumber} {player.position ? `- ${player.position}` : ""}
                 </p>
+                {player.archived ? <span className="status status-cancelled">archived</span> : null}
               </div>
               <div className="row-actions">
                 <button type="button" onClick={() => startEdit(player)} title="Edit player">
                   <Edit3 size={16} />
                 </button>
-                <button type="button" onClick={() => void archivePlayer(player.id, !player.archived)} title="Archive player">
+                <button
+                  type="button"
+                  onClick={() => void archivePlayer(player.id, !player.archived)}
+                  title={player.archived ? "Unarchive player" : "Archive player"}
+                >
                   <Archive size={16} />
                 </button>
                 <button

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
@@ -21,6 +21,7 @@ const blankPlayer = {
 export function PlayersPage() {
   const { data, isAdmin, isLoading, createPlayer } = useApp();
   const router = useRouter();
+  const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(blankPlayer);
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -38,6 +39,7 @@ export function PlayersPage() {
       await createPlayer(form, photo);
       setForm(blankPlayer);
       setPhoto(null);
+      setCreateOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save player.");
     }
@@ -58,73 +60,103 @@ export function PlayersPage() {
     }));
   }
 
+  function closeCreate() {
+    setCreateOpen(false);
+    setForm(blankPlayer);
+    setPhoto(null);
+    setError("");
+  }
+
   return (
-    <PageShell title="Players">
-      {isAdmin ? (
-        <form className="form-panel" onSubmit={(event) => void submit(event)}>
-          <div className="form-title">
-            <h2>Create Player</h2>
-          </div>
-          {error ? <p className="form-error">{error}</p> : null}
-          <div className="form-grid">
-            <label>
-              Player name
-              <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-            </label>
-            <label>
-              Jersey #
-              <input
-                max={99}
-                min={0}
-                required
-                type="number"
-                value={form.jerseyNumber}
-                onChange={(event) => setForm({ ...form, jerseyNumber: Number(event.target.value) })}
-              />
-            </label>
-          </div>
-          <label>
-            Position
-            <select value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })}>
-              <option value="">Select position</option>
-              {form.position && !playerPositions.includes(form.position) ? (
-                <option value={form.position}>{form.position}</option>
-              ) : null}
-              {playerPositions.map((position) => (
-                <option key={position} value={position}>
-                  {position}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="check-grid" aria-label="Assigned teams">
-            {data.teams
-              .filter((team) => !team.archived)
-              .map((team) => (
-                <label key={team.id} className="checkbox-row">
-                  <input checked={form.teamIds.includes(team.id)} type="checkbox" onChange={() => toggleTeam(team.id)} />
-                  {team.name}
-                </label>
-              ))}
-          </div>
-          <label className="file-input">
-            <Upload size={16} />
-            <span>{photo ? photo.name : "Upload profile photo"}</span>
-            <input accept="image/*" type="file" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
-          </label>
-          <label className="checkbox-row">
-            <input
-              checked={form.archived}
-              type="checkbox"
-              onChange={(event) => setForm({ ...form, archived: event.target.checked })}
-            />
-            Archived
-          </label>
-          <button className="primary-button" type="submit">
+    <PageShell
+      title="Players"
+      action={
+        isAdmin ? (
+          <button className="primary-button" type="button" onClick={() => setCreateOpen(true)}>
             <Plus size={17} />
-            Add Player
+            Create Player
           </button>
-        </form>
+        ) : null
+      }
+    >
+      {isAdmin && createOpen ? (
+        <div className="modal-backdrop" onClick={closeCreate}>
+          <section
+            aria-labelledby="create-player-title"
+            aria-modal="true"
+            className="modal-window"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="modal-header">
+              <h2 id="create-player-title">Create Player</h2>
+              <button aria-label="Close create player" className="icon-button" onClick={closeCreate} type="button">
+                <X size={18} />
+              </button>
+            </div>
+            <form className="form-panel" onSubmit={(event) => void submit(event)}>
+              {error ? <p className="form-error">{error}</p> : null}
+              <div className="form-grid">
+                <label>
+                  Player name
+                  <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                </label>
+                <label>
+                  Jersey #
+                  <input
+                    max={99}
+                    min={0}
+                    required
+                    type="number"
+                    value={form.jerseyNumber}
+                    onChange={(event) => setForm({ ...form, jerseyNumber: Number(event.target.value) })}
+                  />
+                </label>
+              </div>
+              <label>
+                Position
+                <select value={form.position} onChange={(event) => setForm({ ...form, position: event.target.value })}>
+                  <option value="">Select position</option>
+                  {form.position && !playerPositions.includes(form.position) ? (
+                    <option value={form.position}>{form.position}</option>
+                  ) : null}
+                  {playerPositions.map((position) => (
+                    <option key={position} value={position}>
+                      {position}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="check-grid" aria-label="Assigned teams">
+                {data.teams
+                  .filter((team) => !team.archived)
+                  .map((team) => (
+                    <label key={team.id} className="checkbox-row">
+                      <input checked={form.teamIds.includes(team.id)} type="checkbox" onChange={() => toggleTeam(team.id)} />
+                      {team.name}
+                    </label>
+                  ))}
+              </div>
+              <label className="file-input">
+                <Upload size={16} />
+                <span>{photo ? photo.name : "Upload profile photo"}</span>
+                <input accept="image/*" type="file" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  checked={form.archived}
+                  type="checkbox"
+                  onChange={(event) => setForm({ ...form, archived: event.target.checked })}
+                />
+                Archived
+              </label>
+              <button className="primary-button" type="submit">
+                <Plus size={17} />
+                Add Player
+              </button>
+            </form>
+          </section>
+        </div>
       ) : null}
 
       <section
