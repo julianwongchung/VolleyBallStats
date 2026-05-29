@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, Edit3, ListFilter, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
@@ -225,28 +224,15 @@ export function TeamsPage() {
         {teams.length === 0 ? <EmptyState title="No teams found" body="Try a different search or filter." /> : null}
         {teams.map((team) => (
           <article className={cn("team-tile", team.archived && "muted-card")} key={team.id}>
-            {isAdmin ? (
-              <Link
-                aria-label={`Open ${team.name} players`}
-                className="team-tile-trigger"
-                href={`/players/${team.id}`}
-                rel="noopener noreferrer"
-                target="_blank"
-                title={`${team.name} players`}
-              >
-                <TeamTileContent team={team} />
-              </Link>
-            ) : (
-              <button
-                aria-label={`Show ${team.name} players`}
-                className="team-tile-trigger"
-                onClick={() => setSelectedGuestTeam(team)}
-                title={`${team.name} players`}
-                type="button"
-              >
-                <TeamTileContent team={team} />
-              </button>
-            )}
+            <button
+              aria-label={`Show ${team.name} players`}
+              className="team-tile-trigger"
+              onClick={() => setSelectedGuestTeam(team)}
+              title={`${team.name} players`}
+              type="button"
+            >
+              <TeamTileContent team={team} />
+            </button>
             {isAdmin ? (
               <div className="team-tile-actions">
                 <button className="team-edit-button" type="button" onClick={() => startEdit(team)}>
@@ -276,7 +262,7 @@ export function TeamsPage() {
         ))}
       </section>
 
-      {!isAdmin && selectedGuestTeam ? (
+      {selectedGuestTeam ? (
         <div className="modal-backdrop" onClick={() => setSelectedGuestTeam(null)}>
           <section
             aria-labelledby="guest-team-roster-title"
@@ -285,20 +271,8 @@ export function TeamsPage() {
             onClick={(event) => event.stopPropagation()}
             role="dialog"
           >
-            <div className="modal-header">
-              <div className="roster-heading">
-                <div className="avatar">
-                  {selectedGuestTeam.logoUrl ? (
-                    <img src={selectedGuestTeam.logoUrl} alt="" />
-                  ) : (
-                    initials(selectedGuestTeam.name)
-                  )}
-                </div>
-                <div>
-                  <h2 id="guest-team-roster-title">{selectedGuestTeam.name}</h2>
-                  <p>{guestTeamPlayers.length} active players</p>
-                </div>
-              </div>
+            <div className="roster-popup-header">
+              <h2 id="guest-team-roster-title">{selectedGuestTeam.name} players</h2>
               <button
                 aria-label="Close roster"
                 className="icon-button"
@@ -309,7 +283,7 @@ export function TeamsPage() {
               </button>
             </div>
 
-            <GuestRosterTable players={guestTeamPlayers} />
+            <GuestRosterList players={guestTeamPlayers} />
           </section>
         </div>
       ) : null}
@@ -326,61 +300,28 @@ function TeamTileContent({ team }: { team: Team }) {
   );
 }
 
-function GuestRosterTable({ players }: { players: Player[] }) {
+function GuestRosterList({ players }: { players: Player[] }) {
   if (players.length === 0) {
     return <EmptyState title="No players found" body="This team does not have an active roster yet." />;
   }
 
   return (
-    <div
-      style={{
-        background: "var(--surface)",
-        borderRadius: 8,
-        marginInline: "auto",
-        maxWidth: 430,
-        overflow: "auto",
-        width: "100%"
-      }}
-    >
-      <table style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid #ff0050" }}>
-            <th style={guestRosterHeaderStyle}>No.</th>
-            <th style={{ ...guestRosterHeaderStyle, textAlign: "left", width: "54%" }}>Player Name</th>
-            <th style={guestRosterHeaderStyle}>Position</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((player, index) => (
-            <tr key={player.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#f4f4f4" }}>
-              <td style={{ ...guestRosterCellStyle, color: "#ff0050", fontWeight: 500 }}>{player.jerseyNumber}</td>
-              <td style={{ ...guestRosterCellStyle, fontWeight: 850, textAlign: "left" }}>{player.name}</td>
-              <td style={{ ...guestRosterCellStyle, fontWeight: 850 }}>{displayPosition(player.position)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <section className="guest-roster-table">
+      <div className="guest-roster-row guest-roster-head">
+        <span>No.</span>
+        <span>Player Name</span>
+        <span>Position</span>
+      </div>
+      {players.map((player) => (
+        <article className="guest-roster-row" key={player.id}>
+          <strong className="guest-roster-number">{player.jerseyNumber}</strong>
+          <strong className="guest-roster-name">{player.name}</strong>
+          <strong className="guest-roster-position">{displayPosition(player.position) || "-"}</strong>
+        </article>
+      ))}
+    </section>
   );
 }
-
-const guestRosterHeaderStyle: React.CSSProperties = {
-  color: "#8a8a8a",
-  fontSize: 13,
-  fontWeight: 500,
-  height: 40,
-  padding: "0 12px",
-  textAlign: "center"
-};
-
-const guestRosterCellStyle: React.CSSProperties = {
-  color: "var(--text)",
-  fontSize: 17,
-  height: 46,
-  padding: "0 12px",
-  textAlign: "center",
-  verticalAlign: "middle"
-};
 
 function initials(name: string) {
   return name

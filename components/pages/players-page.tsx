@@ -1,12 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Upload, X } from "lucide-react";
+import { Archive, ChevronDown, ChevronRight, Edit3, Plus, Trash2, Upload, X } from "lucide-react";
 import { useApp } from "@/components/app-provider";
+import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
+import { playersForTeam } from "@/lib/data/selectors";
+import { cn } from "@/lib/utils";
+import type { Player, Team } from "@/types/domain";
 
 const playerPositions = ["OP", "MB", "SET", "SUB", "LB", "COACH"];
 
@@ -17,29 +20,54 @@ const blankPlayer = {
   archived: false,
   teamIds: [] as string[]
 };
+const collapsedPlayerLimit = 4;
 
 export function PlayersPage() {
-  const { data, isAdmin, isLoading, createPlayer } = useApp();
+  const { data, isAdmin, isLoading, createPlayer, updatePlayer, archivePlayer, deletePlayer } = useApp();
   const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Player | null>(null);
   const [form, setForm] = useState(blankPlayer);
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
+  const [expandedTeamIds, setExpandedTeamIds] = useState<string[]>([]);
 
-  const teams = useMemo(() => {
+  const assignableTeams = useMemo(() => {
     return data.teams
-      .filter((team) => !team.archived)
+      .filter((team) => !team.archived || form.teamIds.includes(team.id))
       .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data.teams, form.teamIds]);
+
+  const groupedTeams = useMemo(() => {
+    return [...data.teams].sort((a, b) => Number(a.archived) - Number(b.archived) || a.name.localeCompare(b.name));
   }, [data.teams]);
+
+  const players = useMemo(() => {
+    return data.players
+      .filter((player) => isAdmin || !player.archived)
+      .sort(
+        (a, b) =>
+          Number(a.archived) - Number(b.archived) ||
+          a.name.localeCompare(b.name) ||
+          a.jerseyNumber - b.jerseyNumber
+      );
+  }, [data.players, isAdmin]);
+
+  const unassignedPlayers = useMemo(() => {
+    const assignedPlayerIds = new Set(data.playerTeams.map((link) => link.playerId));
+    return players.filter((player) => !assignedPlayerIds.has(player.id));
+  }, [data.playerTeams, players]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
     try {
-      await createPlayer(form, photo);
-      setForm(blankPlayer);
-      setPhoto(null);
-      setCreateOpen(false);
+      if (editing) {
+        await updatePlayer(editing.id, form, photo);
+      } else {
+        await createPlayer(form, photo);
+      }
+      closeForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save player.");
     }
@@ -60,11 +88,40 @@ export function PlayersPage() {
     }));
   }
 
-  function closeCreate() {
-    setCreateOpen(false);
+  function startCreate() {
+    setEditing(null);
     setForm(blankPlayer);
     setPhoto(null);
     setError("");
+    setFormOpen(true);
+  }
+
+  function startEdit(player: Player) {
+    setEditing(player);
+    setForm({
+      name: player.name,
+      jerseyNumber: player.jerseyNumber,
+      position: player.position ?? "",
+      archived: player.archived,
+      teamIds: data.playerTeams.filter((link) => link.playerId === player.id).map((link) => link.teamId)
+    });
+    setPhoto(null);
+    setError("");
+    setFormOpen(true);
+  }
+
+  function closeForm() {
+    setFormOpen(false);
+    setEditing(null);
+    setForm(blankPlayer);
+    setPhoto(null);
+    setError("");
+  }
+
+  function toggleExpandedTeam(teamId: string) {
+    setExpandedTeamIds((current) =>
+      current.includes(teamId) ? current.filter((id) => id !== teamId) : [...current, teamId]
+    );
   }
 
   return (
@@ -72,25 +129,25 @@ export function PlayersPage() {
       title="Players"
       action={
         isAdmin ? (
-          <button className="primary-button" type="button" onClick={() => setCreateOpen(true)}>
+          <button className="primary-button" type="button" onClick={startCreate}>
             <Plus size={17} />
             Create Player
           </button>
         ) : null
       }
     >
-      {isAdmin && createOpen ? (
-        <div className="modal-backdrop" onClick={closeCreate}>
+      {isAdmin && formOpen ? (
+        <div className="modal-backdrop" onClick={closeForm}>
           <section
-            aria-labelledby="create-player-title"
+            aria-labelledby="player-form-title"
             aria-modal="true"
             className="modal-window"
             onClick={(event) => event.stopPropagation()}
             role="dialog"
           >
             <div className="modal-header">
-              <h2 id="create-player-title">Create Player</h2>
-              <button aria-label="Close create player" className="icon-button" onClick={closeCreate} type="button">
+              <h2 id="player-form-title">{editing ? "Edit Player" : "Create Player"}</h2>
+              <button aria-label="Close player form" className="icon-button" onClick={closeForm} type="button">
                 <X size={18} />
               </button>
             </div>
@@ -128,14 +185,12 @@ export function PlayersPage() {
                 </select>
               </label>
               <div className="check-grid" aria-label="Assigned teams">
-                {data.teams
-                  .filter((team) => !team.archived)
-                  .map((team) => (
-                    <label key={team.id} className="checkbox-row">
-                      <input checked={form.teamIds.includes(team.id)} type="checkbox" onChange={() => toggleTeam(team.id)} />
-                      {team.name}
-                    </label>
-                  ))}
+                {assignableTeams.map((team) => (
+                  <label key={team.id} className="checkbox-row">
+                    <input checked={form.teamIds.includes(team.id)} type="checkbox" onChange={() => toggleTeam(team.id)} />
+                    {team.name}
+                  </label>
+                ))}
               </div>
               <label className="file-input">
                 <Upload size={16} />
@@ -152,54 +207,140 @@ export function PlayersPage() {
               </label>
               <button className="primary-button" type="submit">
                 <Plus size={17} />
-                Add Player
+                {editing ? "Save Player" : "Add Player"}
               </button>
             </form>
           </section>
         </div>
       ) : null}
 
-      <section
-        aria-label="Teams"
-        style={{
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))"
-        }}
-      >
-        {teams.length === 0 ? <EmptyState title="No teams found" body="Create a team before assigning players." /> : null}
-        {teams.map((team) => (
-          <Link
-            aria-label={`Open ${team.name} players`}
-            href={`/players/${team.id}`}
-            key={team.id}
-            rel="noopener noreferrer"
-            style={{
-              aspectRatio: "1",
-              background: "var(--surface)",
-              border: "1px solid var(--line)",
-              borderRadius: "var(--radius)",
-              boxShadow: "0 1px 0 rgba(16, 24, 40, 0.02)",
-              color: "var(--accent)",
-              display: "grid",
-              fontSize: 20,
-              fontWeight: 950,
-              minHeight: 88,
-              overflow: "hidden",
-              placeItems: "center"
-            }}
-            target="_blank"
-            title={team.name}
-          >
-            {team.logoUrl ? (
-              <img src={team.logoUrl} alt="" style={{ height: "100%", objectFit: "cover", width: "100%" }} />
-            ) : (
-              initials(team.name)
-            )}
-          </Link>
-        ))}
+      <section className="player-team-groups" style={{ marginBottom: 18 }}>
+        {players.length === 0 ? <EmptyState title="No players found" body="Create a player to manage team assignments." /> : null}
+        {groupedTeams.map((team) => {
+          const teamPlayers = playersForTeam(data, team.id)
+            .filter((player) => isAdmin || !player.archived)
+            .sort(
+              (a, b) =>
+                Number(a.archived) - Number(b.archived) ||
+                a.jerseyNumber - b.jerseyNumber ||
+                a.name.localeCompare(b.name)
+            );
+          return (
+            <PlayerTeamSection
+              expanded={expandedTeamIds.includes(team.id)}
+              key={team.id}
+              onArchivePlayer={archivePlayer}
+              onDeletePlayer={deletePlayer}
+              onEditPlayer={startEdit}
+              onToggleExpanded={() => toggleExpandedTeam(team.id)}
+              players={teamPlayers}
+              team={team}
+            />
+          );
+        })}
+        {unassignedPlayers.length > 0 ? (
+          <PlayerTeamSection
+            expanded={expandedTeamIds.includes("unassigned")}
+            onArchivePlayer={archivePlayer}
+            onDeletePlayer={deletePlayer}
+            onEditPlayer={startEdit}
+            onToggleExpanded={() => toggleExpandedTeam("unassigned")}
+            players={unassignedPlayers}
+            team={null}
+          />
+        ) : null}
       </section>
+
     </PageShell>
+  );
+}
+
+function PlayerTeamSection({
+  expanded,
+  onArchivePlayer,
+  onDeletePlayer,
+  onEditPlayer,
+  onToggleExpanded,
+  players,
+  team
+}: {
+  expanded: boolean;
+  onArchivePlayer: (id: string, archived: boolean) => Promise<void>;
+  onDeletePlayer: (id: string) => Promise<void>;
+  onEditPlayer: (player: Player) => void;
+  onToggleExpanded: () => void;
+  players: Player[];
+  team: Team | null;
+}) {
+  const visiblePlayers = expanded ? players : players.slice(0, collapsedPlayerLimit);
+  const hasOverflow = players.length > collapsedPlayerLimit;
+
+  return (
+    <section className="player-team-section">
+      <div className="player-team-section-header">
+        <div className="player-team-title">
+          <span className="player-team-logo large" title={team?.name ?? "Unassigned"} aria-label={team?.name ?? "Unassigned"}>
+            {team?.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team?.name ?? "Unassigned")}
+          </span>
+          <div>
+            <h2>{team?.name ?? "Unassigned"}</h2>
+            <p>{players.length} players</p>
+          </div>
+        </div>
+        {hasOverflow ? (
+          <button className="secondary-button compact-button" type="button" onClick={onToggleExpanded}>
+            {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {expanded ? "Show fewer" : `Show all ${players.length}`}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="player-list">
+        {players.length === 0 ? <EmptyState title="No players found" body="No players assigned to this team yet." /> : null}
+        {visiblePlayers.map((player) => (
+          <article className={cn("player-list-row", player.archived && "muted-card")} key={player.id}>
+            <strong className="player-jersey">{player.jerseyNumber}</strong>
+            <div className="player-list-name">
+              <strong>{player.name}</strong>
+              {player.archived ? <span className="status status-cancelled">archived</span> : null}
+            </div>
+            <span className="player-position">{player.position || "-"}</span>
+            {team ? <PlayerTeamLogo team={team} /> : <span className="player-team-empty">No team</span>}
+            <div className="row-actions">
+              <button type="button" onClick={() => onEditPlayer(player)} title="Edit player">
+                <Edit3 size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => void onArchivePlayer(player.id, !player.archived)}
+                title={player.archived ? "Unarchive player" : "Archive player"}
+              >
+                <Archive size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmAction(`Delete ${player.name}?`)) void onDeletePlayer(player.id);
+                }}
+                title="Delete player"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PlayerTeamLogo({ team }: { team: Team }) {
+  return (
+    <div className="player-team-logos" aria-label="Team">
+      <span className="player-team-logo" title={team.name} aria-label={team.name}>
+        {team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}
+      </span>
+    </div>
   );
 }
 

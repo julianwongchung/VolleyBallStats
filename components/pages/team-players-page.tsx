@@ -7,9 +7,9 @@ import { useApp } from "@/components/app-provider";
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
-import { playersForTeam, teamById } from "@/lib/data/selectors";
+import { playersForTeam, teamById, teamsForPlayer } from "@/lib/data/selectors";
 import { cn } from "@/lib/utils";
-import type { Player } from "@/types/domain";
+import type { Player, Team } from "@/types/domain";
 
 const playerPositions = ["OP", "MB", "SET", "SUB", "LB", "COACH"];
 const positionDisplayLabels: Record<string, string> = {
@@ -37,6 +37,12 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
   const team = teamById(data, teamId);
+
+  const assignableTeams = useMemo(() => {
+    return data.teams
+      .filter((item) => !item.archived || item.id === teamId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data.teams, teamId]);
 
   const players = useMemo(() => {
     return playersForTeam(data, teamId)
@@ -96,6 +102,16 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
     setPhoto(null);
     setError("");
     setFormOpen(true);
+  }
+
+  function toggleTeam(nextTeamId: string) {
+    if (nextTeamId === teamId) return;
+    setForm((current) => ({
+      ...current,
+      teamIds: current.teamIds.includes(nextTeamId)
+        ? current.teamIds.filter((id) => id !== nextTeamId)
+        : [...current.teamIds, nextTeamId]
+    }));
   }
 
   if (!team) {
@@ -171,6 +187,19 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
                   ))}
                 </select>
               </label>
+              <div className="check-grid" aria-label="Assigned teams">
+                {assignableTeams.map((item) => (
+                  <label key={item.id} className="checkbox-row">
+                    <input
+                      checked={form.teamIds.includes(item.id) || item.id === teamId}
+                      disabled={item.id === teamId}
+                      type="checkbox"
+                      onChange={() => toggleTeam(item.id)}
+                    />
+                    {item.name}
+                  </label>
+                ))}
+              </div>
               <label className="file-input">
                 <Upload size={16} />
                 <span>{photo ? photo.name : "Upload profile photo"}</span>
@@ -194,18 +223,17 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
       ) : null}
 
       {isAdmin ? (
-        <section className="card-list">
+        <section className="player-list">
           {players.length === 0 ? <EmptyState title="No players found" body="Add players to this team to show them here." /> : null}
           {players.map((player) => (
-            <article className={cn("entity-card", player.archived && "muted-card")} key={player.id}>
-              <div className="avatar">{player.photoUrl ? <img src={player.photoUrl} alt="" /> : player.jerseyNumber}</div>
-              <div className="entity-main">
-                <h2>{player.name}</h2>
-                <p>
-                  #{player.jerseyNumber} {player.position ? `- ${player.position}` : ""}
-                </p>
+            <article className={cn("player-list-row", player.archived && "muted-card")} key={player.id}>
+              <strong className="player-jersey">{player.jerseyNumber}</strong>
+              <div className="player-list-name">
+                <strong>{player.name}</strong>
                 {player.archived ? <span className="status status-cancelled">archived</span> : null}
               </div>
+              <span className="player-position">{displayPosition(player.position) || "-"}</span>
+              <PlayerTeamLogos teams={teamsForPlayer(data, player.id)} />
               <div className="row-actions">
                 <button type="button" onClick={() => startEdit(player)} title="Edit player">
                   <Edit3 size={16} />
@@ -231,67 +259,55 @@ export function TeamPlayersPage({ teamId }: { teamId: string }) {
           ))}
         </section>
       ) : (
-        <GuestRosterTable players={players} />
+        <GuestRosterList players={players} team={team} />
       )}
     </PageShell>
   );
 }
 
-function GuestRosterTable({ players }: { players: Player[] }) {
+function GuestRosterList({ players, team }: { players: Player[]; team: Team }) {
   if (players.length === 0) {
     return <EmptyState title="No players found" body="No players have been assigned to this team yet." />;
   }
 
   return (
-    <div
-      style={{
-        background: "var(--surface)",
-        borderRadius: 8,
-        marginInline: "auto",
-        maxWidth: 430,
-        overflow: "hidden",
-        width: "100%"
-      }}
-    >
-      <table style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid #ff0050" }}>
-            <th style={guestRosterHeaderStyle}>No.</th>
-            <th style={{ ...guestRosterHeaderStyle, textAlign: "left", width: "54%" }}>Player Name</th>
-            <th style={guestRosterHeaderStyle}>Position</th>
-          </tr>
-        </thead>
-        <tbody>
-          {players.map((player, index) => (
-            <tr key={player.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#f4f4f4" }}>
-              <td style={{ ...guestRosterCellStyle, color: "#ff0050", fontWeight: 500 }}>{player.jerseyNumber}</td>
-              <td style={{ ...guestRosterCellStyle, fontWeight: 850, textAlign: "left" }}>{player.name}</td>
-              <td style={{ ...guestRosterCellStyle, fontWeight: 850 }}>{displayPosition(player.position)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <section className="player-list guest-player-list">
+      {players.map((player) => (
+        <article className="player-list-row" key={player.id}>
+          <strong className="player-jersey">{player.jerseyNumber}</strong>
+          <div className="player-list-name">
+            <strong>{player.name}</strong>
+          </div>
+          <span className="player-position">{displayPosition(player.position) || "-"}</span>
+          <PlayerTeamLogos teams={[team]} />
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function PlayerTeamLogos({ teams }: { teams: Team[] }) {
+  if (teams.length === 0) return <span className="player-team-empty">No team</span>;
+
+  return (
+    <div className="player-team-logos" aria-label="Teams">
+      {teams.map((team) => (
+        <span className="player-team-logo" key={team.id} title={team.name} aria-label={team.name}>
+          {team.logoUrl ? <img src={team.logoUrl} alt="" /> : initials(team.name)}
+        </span>
+      ))}
     </div>
   );
 }
 
-const guestRosterHeaderStyle: React.CSSProperties = {
-  color: "#8a8a8a",
-  fontSize: 13,
-  fontWeight: 500,
-  height: 40,
-  padding: "0 12px",
-  textAlign: "center"
-};
-
-const guestRosterCellStyle: React.CSSProperties = {
-  color: "var(--text)",
-  fontSize: 17,
-  height: 46,
-  padding: "0 12px",
-  textAlign: "center",
-  verticalAlign: "middle"
-};
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 function displayPosition(position?: string | null) {
   if (!position) return "";

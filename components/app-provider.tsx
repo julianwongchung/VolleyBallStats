@@ -313,12 +313,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const replacePlayerTeams = useCallback(
     async (playerId: string, teamIds: string[]) => {
       if (!supabase) return;
+      const normalizedTeamIds = normalizeTeamIds(teamIds);
       const { error: deleteError } = await supabase.from("player_teams").delete().eq("player_id", playerId);
       if (deleteError) throw new Error(deleteError.message);
-      if (teamIds.length === 0) return;
+      if (normalizedTeamIds.length === 0) return;
       const { error } = await supabase
         .from("player_teams")
-        .insert(teamIds.map((teamId) => ({ player_id: playerId, team_id: teamId })));
+        .insert(normalizedTeamIds.map((teamId) => ({ player_id: playerId, team_id: teamId })));
       if (error) throw new Error(error.message);
     },
     [supabase]
@@ -484,6 +485,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const createPlayer = useCallback(
     async (input: PlayerInput, photo?: File | null) => {
       validatePlayer(input);
+      const teamIds = normalizeTeamIds(input.teamIds);
       const timestamp = new Date().toISOString();
 
       if (supabase) {
@@ -498,7 +500,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           .select("*")
           .single();
         if (error) throw new Error(error.message);
-        await replacePlayerTeams(inserted.id, input.teamIds);
+        await replacePlayerTeams(inserted.id, teamIds);
         if (photo) await uploadPlayerPhoto(inserted.id, photo);
         await loadSupabaseData();
         return;
@@ -516,7 +518,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         createdAt: timestamp,
         updatedAt: timestamp
       };
-      const links = input.teamIds.map((teamId) => ({
+      const links = teamIds.map((teamId) => ({
         id: uid("pt"),
         playerId,
         teamId,
@@ -530,6 +532,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updatePlayer = useCallback(
     async (id: string, input: PlayerInput, photo?: File | null) => {
       validatePlayer(input);
+      const teamIds = normalizeTeamIds(input.teamIds);
       if (supabase) {
         const { error } = await supabase
           .from("players")
@@ -542,14 +545,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           })
           .eq("id", id);
         if (error) throw new Error(error.message);
-        await replacePlayerTeams(id, input.teamIds);
+        await replacePlayerTeams(id, teamIds);
         if (photo) await uploadPlayerPhoto(id, photo);
         await loadSupabaseData();
         return;
       }
 
       const timestamp = new Date().toISOString();
-      const links = input.teamIds.map((teamId) => ({
+      const links = teamIds.map((teamId) => ({
         id: uid("pt"),
         playerId: id,
         teamId,
@@ -955,7 +958,11 @@ function validatePlayer(input: PlayerInput) {
   if (!Number.isInteger(input.jerseyNumber) || input.jerseyNumber < 0 || input.jerseyNumber > 99) {
     throw new Error("Jersey number must be between 0 and 99.");
   }
-  if (input.teamIds.length === 0) throw new Error("Assign at least one team.");
+  if (normalizeTeamIds(input.teamIds).length === 0) throw new Error("Assign at least one team.");
+}
+
+function normalizeTeamIds(teamIds: string[]) {
+  return Array.from(new Set(teamIds.filter(Boolean)));
 }
 
 function validateMatch(input: MatchInput) {
