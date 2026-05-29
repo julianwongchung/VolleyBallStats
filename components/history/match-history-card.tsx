@@ -42,9 +42,14 @@ export function MatchHistoryCard({
             View Details
           </Link>
           {isAdmin ? (
-            <button className="danger-button compact-button" type="button" onClick={onDelete}>
+            <button
+              aria-label="Delete match history"
+              className="danger-button compact-icon-button"
+              title="Delete match"
+              type="button"
+              onClick={onDelete}
+            >
               <Trash2 size={16} />
-              Delete
             </button>
           ) : null}
         </div>

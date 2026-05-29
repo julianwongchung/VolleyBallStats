@@ -1,20 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useApp } from "@/components/app-provider";
 import { MatchHistoryCard } from "@/components/history/match-history-card";
 import { confirmAction } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell } from "@/components/ui/page-shell";
-import { displayTeam, teamById } from "@/lib/data/selectors";
+import { teamById } from "@/lib/data/selectors";
 import { formatDate } from "@/lib/utils";
 
 export function HistoryPage() {
   const { data, isAdmin, deleteMatch } = useApp();
-  const [search, setSearch] = useState("");
   const [teamFilter, setTeamFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [toggledDateGroups, setToggledDateGroups] = useState<Set<string>>(() => new Set());
 
   const completedDates = useMemo(() => {
     return Array.from(
@@ -26,16 +26,10 @@ export function HistoryPage() {
   const matches = useMemo(() => {
     return data.matches
       .filter((match) => match.status === "completed")
-      .filter((match) => {
-        const teamA = teamById(data, match.teamAId);
-        const teamB = teamById(data, match.teamBId);
-        const haystack = `${displayTeam(teamA)} ${displayTeam(teamB)}`.toLowerCase();
-        return haystack.includes(search.toLowerCase());
-      })
       .filter((match) => (teamFilter === "all" ? true : match.teamAId === teamFilter || match.teamBId === teamFilter))
       .filter((match) => (activeDateFilter ? match.matchDate === activeDateFilter : true))
       .sort((a, b) => b.matchDate.localeCompare(a.matchDate));
-  }, [activeDateFilter, data, search, teamFilter]);
+  }, [activeDateFilter, data.matches, teamFilter]);
   const matchGroups = useMemo(() => {
     const groups = new Map<string, typeof matches>();
     matches.forEach((match) => {
@@ -47,6 +41,23 @@ export function HistoryPage() {
     return Array.from(groups, ([date, groupMatches]) => ({ date, matches: groupMatches }));
   }, [matches]);
 
+  function toggleDateGroup(date: string) {
+    setToggledDateGroups((current) => {
+      const next = new Set(current);
+      if (next.has(date)) {
+        next.delete(date);
+      } else {
+        next.add(date);
+      }
+      return next;
+    });
+  }
+
+  function isGroupCollapsed(date: string) {
+    const defaultCollapsed = !activeDateFilter && isAtLeastSevenDaysOld(date);
+    return toggledDateGroups.has(date) ? !defaultCollapsed : defaultCollapsed;
+  }
+
   return (
     <PageShell title="History">
       <section className="filter-panel">
@@ -54,14 +65,10 @@ export function HistoryPage() {
           <strong>Completed Matches</strong>
         </div>
         <div className="history-filter-grid">
-          <label className="search-box">
-            <Search size={16} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search team name" />
-          </label>
           <label>
             Date
             <select value={activeDateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-              <option value="">All completed dates</option>
+              <option value="">Completed Date</option>
               {completedDates.map((date) => (
                 <option key={date} value={date}>
                   {formatDate(date)}
@@ -87,29 +94,54 @@ export function HistoryPage() {
         {matches.length === 0 ? (
           <EmptyState title="No completed matches" body="Completed matches will appear here after they are recorded." />
         ) : null}
-        {matchGroups.map((group) => (
-          <div className="history-date-group" key={group.date}>
-            <div className="history-date-heading">
-              <strong>{formatDate(group.date)}</strong>
-              <span>
-                {group.matches.length} match{group.matches.length === 1 ? "" : "es"}
-              </span>
+        {matchGroups.map((group) => {
+          const collapsed = isGroupCollapsed(group.date);
+
+          return (
+            <div className="history-date-group" key={group.date}>
+              <button
+                aria-expanded={!collapsed}
+                className="history-date-heading"
+                type="button"
+                onClick={() => toggleDateGroup(group.date)}
+              >
+                <div>
+                  <ChevronDown className={collapsed ? "collapsed" : ""} size={18} />
+                  <strong>{formatDate(group.date)}</strong>
+                </div>
+                <span>
+                  {group.matches.length} match{group.matches.length === 1 ? "" : "es"}
+                </span>
+              </button>
+              {collapsed
+                ? null
+                : group.matches.map((match) => (
+                    <MatchHistoryCard
+                      key={match.id}
+                      isAdmin={isAdmin}
+                      match={match}
+                      teamA={teamById(data, match.teamAId)}
+                      teamB={teamById(data, match.teamBId)}
+                      onDelete={() => {
+                        if (confirmAction("Delete this match history and all related statistics?")) void deleteMatch(match.id);
+                      }}
+                    />
+                  ))}
             </div>
-            {group.matches.map((match) => (
-              <MatchHistoryCard
-                key={match.id}
-                isAdmin={isAdmin}
-                match={match}
-                teamA={teamById(data, match.teamAId)}
-                teamB={teamById(data, match.teamBId)}
-                onDelete={() => {
-                  if (confirmAction("Delete this match history and all related statistics?")) void deleteMatch(match.id);
-                }}
-              />
-            ))}
-          </div>
-        ))}
+          );
+        })}
       </section>
     </PageShell>
   );
+}
+
+function isAtLeastSevenDaysOld(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const matchDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysOld = Math.floor((today.getTime() - matchDate.getTime()) / 86_400_000);
+  return daysOld >= 7;
 }

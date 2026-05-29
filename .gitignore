@@ -1,8 +1,10 @@
 .next
+.next-local
 node_modules
 .env
 .env.local
 .env*.local
+supabase/.temp
 *.tsbuildinfo
 next-env.d.ts
 vercel

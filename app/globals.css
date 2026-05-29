@@ -914,6 +914,27 @@ label {
   gap: 10px;
 }
 
+.match-create-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 14px;
+}
+
+.match-form-modal {
+  width: min(100%, 560px);
+  max-height: min(760px, calc(100vh - 32px));
+  margin: 0;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+}
+
+.match-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .form-stack,
 .check-grid {
   display: grid;
@@ -1252,6 +1273,12 @@ label {
   gap: 12px;
   padding: 14px;
   border-bottom: 1px solid var(--line);
+}
+
+.modal-window > .form-panel {
+  max-height: calc(100vh - 118px);
+  margin-bottom: 0;
+  overflow-y: auto;
 }
 
 .roster-popup {
@@ -2277,6 +2304,33 @@ label {
   margin-top: 4px;
 }
 
+.stats-filter-panel {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.stats-filter-panel .filter-grid {
+  gap: 8px 10px;
+  margin-bottom: 0;
+}
+
+.stats-filter-panel label {
+  gap: 4px;
+  font-size: 12px;
+}
+
+.stats-filter-panel select {
+  min-height: 36px;
+  padding-inline: 9px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.stats-filter-panel .filter-heading {
+  min-height: 18px;
+  font-size: 12px;
+}
+
 .stat-total-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -2293,7 +2347,7 @@ label {
 }
 
 .player-summary-grid {
-  grid-template-columns: minmax(94px, 1.5fr) repeat(6, minmax(28px, 0.5fr));
+  grid-template-columns: minmax(78px, 1.35fr) repeat(6, minmax(24px, 0.45fr)) minmax(32px, 0.5fr);
 }
 
 .team-grid {
@@ -2326,9 +2380,9 @@ label {
 }
 
 .player-summary-grid {
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
-  padding-inline: 8px;
+  padding-inline: 7px;
 }
 
 .player-summary-grid span,
@@ -2458,6 +2512,23 @@ label {
   border-radius: var(--radius);
   background: #eef6ff;
   color: #0f3761;
+  cursor: pointer;
+}
+
+.history-date-heading > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.history-date-heading svg {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.history-date-heading svg.collapsed {
+  transform: rotate(-90deg);
 }
 
 .history-date-heading strong {
@@ -2618,8 +2689,12 @@ label {
 }
 
 .compact-icon-button {
+  display: inline-grid;
+  place-items: center;
+  min-height: 38px;
   width: 38px;
   height: 38px;
+  padding: 0;
 }
 
 .comparison-panel {
@@ -2943,6 +3018,85 @@ label {
   text-decoration: none;
 }
 
+@media (max-width: 639px) {
+  .app-frame {
+    padding-inline: 12px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .topbar-actions {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .topbar-actions > .primary-button,
+  .topbar-actions > .secondary-button {
+    flex: 1 1 132px;
+    min-width: 0;
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+
+  .topbar-actions > .primary-button:first-child:last-child,
+  .topbar-actions > .secondary-button:first-child:last-child {
+    flex-basis: 100%;
+  }
+
+  .brand-logo-mobile {
+    width: 126px;
+    height: 46px;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .modal-window {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+  }
+
+  .modal-header {
+    padding: 12px;
+  }
+
+  .modal-window > .form-panel {
+    max-height: calc(100vh - 92px);
+    padding: 12px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-card {
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .entity-card .row-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .entity-card .row-actions button {
+    width: 100%;
+  }
+}
+
 @media (min-width: 640px) {
   .app-frame {
     padding: 24px 22px 104px;
@@ -2973,7 +3127,7 @@ label {
   }
 
   .history-filter-grid {
-    grid-template-columns: minmax(0, 1fr) 170px 170px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: end;
   }
 

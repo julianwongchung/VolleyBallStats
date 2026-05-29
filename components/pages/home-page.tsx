@@ -17,7 +17,7 @@ export function HomePage() {
   const blocker = topByStat(data, "block");
   const totalAces = data.matchStats.reduce((sum, stat) => sum + stat.ace, 0);
   const upcomingMatches = recentMatches(data.matches.filter((match) => match.status !== "completed"));
-  const recentCompletedMatches = recentMatches(data.matches.filter((match) => match.status === "completed"));
+  const recentCompletedMatches = recentMatches(data.matches.filter((match) => match.status === "completed")).slice(0, 3);
 
   return (
     <PageShell title="Home">

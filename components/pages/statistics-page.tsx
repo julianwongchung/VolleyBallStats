@@ -20,16 +20,26 @@ type PlayerSummaryRow = {
   playerName: string;
   stats: Record<StatKey, number>;
   points: number;
+  plusMinus: number;
 };
 
 export function StatisticsPage() {
   const { data } = useApp();
   const [matchFilter, setMatchFilter] = useState(data.matches[0]?.id ?? "all");
+  const [dateFilter, setDateFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [playerFilter, setPlayerFilter] = useState("all");
   const [summaryTeamFilter, setSummaryTeamFilter] = useState(data.matches[0]?.teamAId ?? "");
 
   const selectedMatch = data.matches.find((match) => match.id === matchFilter);
+  const matchDates = useMemo(
+    () => [...new Set(data.matches.map((match) => match.matchDate))].sort((a, b) => b.localeCompare(a)),
+    [data.matches]
+  );
+  const dateMatchIds = useMemo(() => {
+    if (dateFilter === "all") return null;
+    return new Set(data.matches.filter((match) => match.matchDate === dateFilter).map((match) => match.id));
+  }, [data.matches, dateFilter]);
   const summaryTeamIds = selectedMatch ? [selectedMatch.teamAId, selectedMatch.teamBId] : [];
   const activeSummaryTeamId = selectedMatch
     ? summaryTeamIds.includes(summaryTeamFilter)
@@ -39,20 +49,29 @@ export function StatisticsPage() {
 
   function handleMatchFilterChange(matchId: string) {
     setMatchFilter(matchId);
+    setDateFilter("all");
     const match = data.matches.find((current) => current.id === matchId);
     setSummaryTeamFilter(match?.teamAId ?? "");
+  }
+
+  function handleDateFilterChange(matchDate: string) {
+    setDateFilter(matchDate);
+    setMatchFilter("all");
+    setSummaryTeamFilter("");
   }
 
   const filteredStats = useMemo(() => {
     return data.matchStats
       .filter((stat) => (matchFilter === "all" ? true : stat.matchId === matchFilter))
+      .filter((stat) => (dateMatchIds ? dateMatchIds.has(stat.matchId) : true))
       .filter((stat) => (teamFilter === "all" ? true : stat.teamId === teamFilter))
       .filter((stat) => (playerFilter === "all" ? true : stat.playerId === playerFilter));
-  }, [data.matchStats, matchFilter, playerFilter, teamFilter]);
+  }, [data.matchStats, dateMatchIds, matchFilter, playerFilter, teamFilter]);
 
   const playerSummaryRows = buildPlayerSummaryRows(
     data,
     matchFilter,
+    dateMatchIds,
     selectedMatch ? activeSummaryTeamId : teamFilter,
     playerFilter
   );
@@ -62,7 +81,7 @@ export function StatisticsPage() {
 
   return (
     <PageShell title="Statistics">
-      <section className="filter-panel">
+      <section className="filter-panel stats-filter-panel">
         <div className="filter-heading">
           <Filter size={16} />
           <strong>Filters</strong>
@@ -74,8 +93,18 @@ export function StatisticsPage() {
               <option value="all">All matches</option>
               {data.matches.map((match) => (
                 <option key={match.id} value={match.id}>
-                  {formatDate(match.matchDate)} - {displayTeam(teamById(data, match.teamAId))} vs{" "}
-                  {displayTeam(teamById(data, match.teamBId))}
+                  {formatMatchFilterLabel(data, match)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Date
+            <select value={dateFilter} onChange={(event) => handleDateFilterChange(event.target.value)}>
+              <option value="all">All dates</option>
+              {matchDates.map((matchDate) => (
+                <option key={matchDate} value={matchDate}>
+                  {formatShortDate(matchDate)}
                 </option>
               ))}
             </select>
@@ -143,6 +172,9 @@ export function StatisticsPage() {
               {statKeys.map((key) => (
                 <span key={key}>{statShortLabels[key]}</span>
               ))}
+              <span title="Individual Technical Plus-Minus = Positive Scoring Actions - Errors" aria-label="Individual Technical Plus-Minus = Positive Scoring Actions minus Errors">
+                +/-
+              </span>
             </div>
             {playerSummaryRows.map((row) => (
               <div className="table-row player-summary-grid" key={row.key}>
@@ -152,6 +184,7 @@ export function StatisticsPage() {
                     {row.stats[key]}
                   </span>
                 ))}
+                <b title="Individual Technical Plus-Minus = Positive Scoring Actions - Errors">{row.plusMinus}</b>
               </div>
             ))}
           </div>
@@ -192,6 +225,7 @@ export function StatisticsPage() {
 function buildPlayerSummaryRows(
   data: AppData,
   matchFilter: string,
+  dateMatchIds: Set<string> | null,
   teamFilter: string,
   playerFilter: string
 ) {
@@ -199,6 +233,7 @@ function buildPlayerSummaryRows(
 
   for (const stat of data.matchStats) {
     if (matchFilter !== "all" && stat.matchId !== matchFilter) continue;
+    if (dateMatchIds && !dateMatchIds.has(stat.matchId)) continue;
     if (teamFilter !== "all" && stat.teamId !== teamFilter) continue;
     if (playerFilter !== "all" && stat.playerId !== playerFilter) continue;
 
@@ -217,7 +252,8 @@ function buildPlayerSummaryRows(
           },
           {} as Record<StatKey, number>
         ),
-        points: 0
+        points: 0,
+        plusMinus: 0
       };
       rows.set(key, row);
     }
@@ -230,7 +266,49 @@ function buildPlayerSummaryRows(
   return [...rows.values()]
     .map((row) => ({
       ...row,
-      points: row.stats.attack + row.stats.block + row.stats.ace
+      points: row.stats.attack + row.stats.block + row.stats.ace,
+      plusMinus:
+        row.stats.attack +
+        row.stats.block +
+        row.stats.ace -
+        row.stats.attackError -
+        row.stats.serveError -
+        row.stats.receiveError
     }))
     .sort((a, b) => b.points - a.points || a.playerName.localeCompare(b.playerName));
+}
+
+function formatMatchFilterLabel(data: AppData, match: AppData["matches"][number]) {
+  const teamA = shortTeamName(displayTeam(teamById(data, match.teamAId)));
+  const teamB = shortTeamName(displayTeam(teamById(data, match.teamBId)));
+  const remark = compactText(match.remarks?.trim() ?? "", 34);
+  const label = `${formatShortDate(match.matchDate)} - ${teamA} v ${teamB}`;
+
+  return remark ? `${label} - ${remark}` : label;
+}
+
+function formatShortDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[Number(match[2]) - 1] ?? match[2];
+  return `${Number(match[3])} ${month} '${match[1].slice(2)}`;
+}
+
+function shortTeamName(name: string) {
+  const withoutTeam = name.replace(/\s+team$/i, "").trim();
+  if (withoutTeam.length <= 16) return withoutTeam;
+  const initials = withoutTeam
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  return initials.length > 1 ? initials : withoutTeam.slice(0, 16);
+}
+
+function compactText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}...`;
 }

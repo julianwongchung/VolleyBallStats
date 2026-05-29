@@ -61,6 +61,7 @@ const courtActionDescriptions: Record<StatKey, string> = {
 export function MatchesPage() {
   const { data, isAdmin, createMatch, updateMatch, deleteMatch, resetMatchStats, setMatchPlayer, updateStat } = useApp();
   const [editing, setEditing] = useState<Match | null>(null);
+  const [matchFormOpen, setMatchFormOpen] = useState(false);
   const [form, setForm] = useState<MatchInput>(blankMatch);
   const [selectedMatchId, setSelectedMatchId] = useState(data.matches[0]?.id ?? "");
   const [selectedTeamId, setSelectedTeamId] = useState("");
@@ -140,13 +141,28 @@ export function MatchesPage() {
       }
       setEditing(null);
       setForm(newMatchDefaults());
+      setMatchFormOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save match.");
     }
   }
 
+  function startCreateMatch() {
+    setEditing(null);
+    setForm(newMatchDefaults());
+    setError("");
+    setMatchFormOpen(true);
+  }
+
+  function closeMatchForm() {
+    setEditing(null);
+    setError("");
+    setMatchFormOpen(false);
+  }
+
   function startEdit(match: Match) {
     setEditing(match);
+    setError("");
     setForm({
       teamAId: match.teamAId,
       teamBId: match.teamBId,
@@ -159,6 +175,7 @@ export function MatchesPage() {
     });
     setSelectedMatchId(match.id);
     setSelectedTeamId(match.teamAId);
+    setMatchFormOpen(true);
   }
 
   function toggleDateGroup(date: string) {
@@ -385,109 +402,128 @@ export function MatchesPage() {
 
   return (
     <PageShell title="Match">
-      <form className="form-panel" onSubmit={(event) => void submit(event)}>
-        <div className="form-title">
-          <h2>{editing ? "Edit Match" : "Create Match"}</h2>
-          {editing ? (
-            <button type="button" className="text-button" onClick={() => setEditing(null)}>
-              Cancel
-            </button>
-          ) : null}
-        </div>
-        {error ? <p className="form-error">{error}</p> : null}
-        <div className="form-grid">
-          <label>
-            Team A
-            <select value={form.teamAId} required onChange={(event) => setForm({ ...form, teamAId: event.target.value })}>
-              <option value="">Select team</option>
-              {data.teams
-                .filter((team) => !team.archived)
-                .map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            Team B
-            <select value={form.teamBId} required onChange={(event) => setForm({ ...form, teamBId: event.target.value })}>
-              <option value="">Select team</option>
-              {data.teams
-                .filter((team) => !team.archived)
-                .map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
-        <div className="form-grid">
-          <label>
-            Date
-            <input
-              required
-              type="date"
-              value={form.matchDate}
-              onChange={(event) => setForm({ ...form, matchDate: event.target.value })}
-            />
-          </label>
-          <label>
-            Status
-            <select
-              value={form.status}
-              onChange={(event) => setForm({ ...form, status: event.target.value as MatchStatus })}
-            >
-              <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
-        </div>
-        <div className="form-grid">
-          <label>
-            Team A score
-            <input
-              min={0}
-              type="number"
-              value={form.teamAScore ?? 0}
-              onChange={(event) => setForm({ ...form, teamAScore: Number(event.target.value) })}
-            />
-          </label>
-          <label>
-            Team B score
-            <input
-              min={0}
-              type="number"
-              value={form.teamBScore ?? 0}
-              onChange={(event) => setForm({ ...form, teamBScore: Number(event.target.value) })}
-            />
-          </label>
-        </div>
-        <label>
-          YouTube video link
-          <input
-            placeholder="https://www.youtube.com/watch?v=..."
-            type="url"
-            value={form.videoUrl ?? ""}
-            onChange={(event) => setForm({ ...form, videoUrl: event.target.value })}
-          />
-        </label>
-        <label>
-          Remarks
-          <textarea
-            rows={3}
-            value={form.remarks ?? ""}
-            onChange={(event) => setForm({ ...form, remarks: event.target.value })}
-          />
-        </label>
-        <button className="primary-button" type="submit">
+      <section className="match-create-toolbar">
+        <button className="primary-button" type="button" onClick={startCreateMatch}>
           <Plus size={17} />
-          {editing ? "Save Match" : "Add Match"}
+          Create Match
         </button>
-      </form>
+      </section>
+
+      {matchFormOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeMatchForm}>
+          <form
+            aria-label={editing ? "Edit match" : "Create match"}
+            className="form-panel match-form-modal"
+            onClick={(event) => event.stopPropagation()}
+            onSubmit={(event) => void submit(event)}
+          >
+            <div className="form-title">
+              <h2>{editing ? "Edit Match" : "Create Match"}</h2>
+              <button aria-label="Close match form" type="button" className="icon-button" onClick={closeMatchForm}>
+                <X size={17} />
+              </button>
+            </div>
+            {error ? <p className="form-error">{error}</p> : null}
+            <div className="form-grid">
+              <label>
+                Team A
+                <select value={form.teamAId} required onChange={(event) => setForm({ ...form, teamAId: event.target.value })}>
+                  <option value="">Select team</option>
+                  {data.teams
+                    .filter((team) => !team.archived)
+                    .map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                Team B
+                <select value={form.teamBId} required onChange={(event) => setForm({ ...form, teamBId: event.target.value })}>
+                  <option value="">Select team</option>
+                  {data.teams
+                    .filter((team) => !team.archived)
+                    .map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+            <div className="form-grid">
+              <label>
+                Date
+                <input
+                  required
+                  type="date"
+                  value={form.matchDate}
+                  onChange={(event) => setForm({ ...form, matchDate: event.target.value })}
+                />
+              </label>
+              <label>
+                Status
+                <select
+                  value={form.status}
+                  onChange={(event) => setForm({ ...form, status: event.target.value as MatchStatus })}
+                >
+                  <option value="scheduled">Scheduled</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </label>
+            </div>
+            <div className="form-grid">
+              <label>
+                Team A score
+                <input
+                  min={0}
+                  type="number"
+                  value={form.teamAScore ?? 0}
+                  onChange={(event) => setForm({ ...form, teamAScore: Number(event.target.value) })}
+                />
+              </label>
+              <label>
+                Team B score
+                <input
+                  min={0}
+                  type="number"
+                  value={form.teamBScore ?? 0}
+                  onChange={(event) => setForm({ ...form, teamBScore: Number(event.target.value) })}
+                />
+              </label>
+            </div>
+            <label>
+              YouTube video link
+              <input
+                placeholder="https://www.youtube.com/watch?v=..."
+                type="url"
+                value={form.videoUrl ?? ""}
+                onChange={(event) => setForm({ ...form, videoUrl: event.target.value })}
+              />
+            </label>
+            <label>
+              Remarks
+              <textarea
+                rows={3}
+                value={form.remarks ?? ""}
+                onChange={(event) => setForm({ ...form, remarks: event.target.value })}
+              />
+            </label>
+            <div className="match-form-actions">
+              <button className="text-button" type="button" onClick={closeMatchForm}>
+                Cancel
+              </button>
+              <button className="primary-button" type="submit">
+                <Plus size={17} />
+                {editing ? "Save Match" : "Add Match"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <section className="section-block match-record-section">
         <div className="section-heading">
